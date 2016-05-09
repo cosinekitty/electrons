@@ -112,13 +112,13 @@ module Electrons {
         private GetCameraCoords(P:Vector):CameraCoords {
             var p:number = this.parallaxDistance / (this.parallaxDistance - P.getZ());
             var h:number = p * (1 + P.getX()) * this.zoomFactor * this.pixelsWide;
-            var v:number = p * (1 + P.getY()) * this.zoomFactor * this.pixelsHigh;
+            var v:number = p * (1 - P.getY()) * this.zoomFactor * this.pixelsHigh;
             return new CameraCoords(h, v);
         }
 
         private GetWorldCoordinates(h:number, v:number):Vector {
             var x:number = h / (this.zoomFactor * this.pixelsWide) - 1;
-            var y:number = v / (this.zoomFactor * this.pixelsHigh) - 1;
+            var y:number = 1 - v / (this.zoomFactor * this.pixelsHigh);
             var z:number = 0;
             return new Vector(x, y, z);
         }
@@ -138,6 +138,34 @@ module Electrons {
             context.strokeStyle = color;
             context.lineWidth = 1;
             context.stroke();
+        }
+
+        public DrawLine(
+            context:CanvasRenderingContext2D,
+            startpoint:Vector,
+            endpoint:Vector,
+            color:string):void
+        {
+            let startcam:CameraCoords = this.GetCameraCoords(startpoint);
+            let endcam:CameraCoords = this.GetCameraCoords(endpoint);
+
+            context.beginPath();
+            context.moveTo(startcam.getHor(), startcam.getVer());
+            context.lineTo(endcam.getHor(), endcam.getVer());
+            context.strokeStyle = color;
+            context.lineWidth = 1;
+            context.stroke();
+        }
+
+        public DrawAxis(
+            context:CanvasRenderingContext2D,
+            name:string,
+            startpoint:Vector,
+            endpoint:Vector,
+            color:string):void
+        {
+            this.DrawLine(context, startpoint, endpoint, color);
+            // FIXFIXFIX - render the name of the axis
         }
     }
 
@@ -189,6 +217,9 @@ module Electrons {
         private particleList:Particle[];
         private sphereCenter:Vector = new Vector(0, 0, 0);
         private sphereRadius:number = 1.0;
+        private xAxis:Vector = new Vector(1, 0, 0);
+        private yAxis:Vector = new Vector(0, 1, 0);
+        private zAxis:Vector = new Vector(0, 0, 1);
 
         public constructor() {
             this.particleList = [];
@@ -218,6 +249,9 @@ module Electrons {
             var context:CanvasRenderingContext2D = canvas.getContext('2d');
             display.Erase(context);
             display.DrawSphere(context, this.sphereCenter, this.sphereRadius, '#77f');
+            display.DrawAxis(context, 'x', this.sphereCenter, this.xAxis, '#f00');
+            display.DrawAxis(context, 'y', this.sphereCenter, this.yAxis, '#f00');
+            display.DrawAxis(context, 'z', this.sphereCenter, this.zAxis, '#f00');
             for (let i:number = 0; i < this.particleList.length; ++i) {
                 display.DrawSphere(context, this.particleList[i].GetPosition(), 0.01, '#000');
             }
@@ -241,7 +275,7 @@ module Electrons {
     $(document).ready(function(){
         canvas = <HTMLCanvasElement> document.getElementById('SimCanvas');
         sim = new Simulation();
-        for (let i:number = 0; i < 5; ++i) {
+        for (let i:number = 0; i < 17; ++i) {
             let x:number = Math.random();
             let y:number = Math.random();
             let z:number = Math.random();
