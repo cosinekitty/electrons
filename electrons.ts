@@ -5,6 +5,10 @@
 /// <reference path="jquery.d.ts" />
 
 module Electrons {
+    function RadiansFromDegrees(d:number):number {
+        return d * (Math.PI / 180);
+    }
+
     class Vector {
         private x:number;
         private y:number;
@@ -81,6 +85,60 @@ module Electrons {
         public mul(scalar:number) {
             return new Vector(scalar*this.x, scalar*this.y, scalar*this.z);
         }
+
+        public RotateX(a:number, b:number):Vector {
+            return new Vector(this.x, a*this.y - b*this.z, b*this.y + a*this.z);
+        }
+
+        public RotateY(a:number, b:number):Vector {
+            return new Vector(a*this.x + b*this.z, this.y, a*this.z - b*this.x);
+        }
+
+        public RotateZ(a:number, b:number):Vector {
+            return new Vector(a*this.x - b*this.y, b*this.x - a*this.y, this.z);
+        }
+    }
+
+    class RotationMatrix {
+        private constructor(private r:Vector, private s:Vector, private t:Vector) {
+        }
+
+        public static Unrotated:RotationMatrix = new RotationMatrix(
+            new Vector(1, 0, 0),
+            new Vector(0, 1, 0),
+            new Vector(0, 0, 1)
+        );
+
+        public RotateX(radians:number):RotationMatrix {
+            let a:number = Math.cos(radians);
+            let b:number = Math.sin(radians);
+            return new RotationMatrix(
+                this.r.RotateX(a, b),
+                this.s.RotateX(a, b),
+                this.t.RotateX(a, b));
+        }
+
+        public RotateY(radians:number):RotationMatrix {
+            let a:number = Math.cos(radians);
+            let b:number = Math.sin(radians);
+            return new RotationMatrix(
+                this.r.RotateY(a, b),
+                this.s.RotateY(a, b),
+                this.t.RotateY(a, b));
+        }
+
+        public RotateZ(radians:number):RotationMatrix {
+            let a:number = Math.cos(radians);
+            let b:number = Math.sin(radians);
+            return new RotationMatrix(
+                this.r.RotateZ(a, b),
+                this.s.RotateZ(a, b),
+                this.t.RotateZ(a, b));
+        }
+
+        public Rotate(v:Vector):Vector {
+            return new Vector(v.dot(this.r), v.dot(this.s), v.dot(this.t));
+        }
     }
 
     class CameraCoords {
@@ -97,6 +155,8 @@ module Electrons {
     }
 
     class Display {
+        private rotmat:RotationMatrix = RotationMatrix.Unrotated;
+
         public constructor(
             private pixelsWide:number,          // number of pixels wide in canvas
             private pixelsHigh:number,          // number of pixels high in canvas
@@ -105,22 +165,32 @@ module Electrons {
         {
         }
 
+        public RotateX(radians:number):void {
+            this.rotmat = this.rotmat.RotateX(radians);
+        }
+
+        public RotateY(radians:number):void {
+            this.rotmat = this.rotmat.RotateY(radians);
+        }
+
+        public RotateZ(radians:number):void {
+            this.rotmat = this.rotmat.RotateZ(radians);
+        }
+
         public Erase(context:CanvasRenderingContext2D):void {
             context.clearRect(0, 0, this.pixelsWide, this.pixelsHigh);
         }
 
-        private GetCameraCoords(P:Vector):CameraCoords {
-            var p:number = this.parallaxDistance / (this.parallaxDistance - P.getZ());
-            var h:number = p * (1 + P.getX()) * this.zoomFactor * this.pixelsWide;
-            var v:number = p * (1 - P.getY()) * this.zoomFactor * this.pixelsHigh;
-            return new CameraCoords(h, v);
+        private Scale(z:number):number {
+            return (this.pixelsWide * this.zoomFactor) / (this.parallaxDistance - z);
         }
 
-        private GetWorldCoordinates(h:number, v:number):Vector {
-            var x:number = h / (this.zoomFactor * this.pixelsWide) - 1;
-            var y:number = 1 - v / (this.zoomFactor * this.pixelsHigh);
-            var z:number = 0;
-            return new Vector(x, y, z);
+        private GetCameraCoords(point:Vector):CameraCoords {
+            var rot:Vector = this.rotmat.Rotate(point);
+            var scale:number = this.Scale(rot.getZ());
+            var h:number = scale * (1 + rot.getX());
+            var v:number = scale * (1 - rot.getY());
+            return new CameraCoords(h, v);
         }
 
         public DrawSphere(
@@ -129,9 +199,10 @@ module Electrons {
             radius:number,
             color:string):void
         {
+            let crot:Vector = this.rotmat.Rotate(center);
             let origin:CameraCoords = this.GetCameraCoords(center);
-            let rpoint:CameraCoords = this.GetCameraCoords(center.add(new Vector(radius, 0, 0)));
-            let cradius:number = rpoint.getHor() - origin.getHor();
+            let theta:number = Math.asin(radius/(this.parallaxDistance - crot.getZ()));
+            let cradius:number = this.parallaxDistance * this.Scale(crot.getZ()) * Math.tan(theta);
 
             context.beginPath();
             context.arc(origin.getHor(), origin.getVer(), cradius, 0, 2*Math.PI, true);
@@ -263,12 +334,13 @@ module Electrons {
     var display:Display;
     const FrameDelayMillis:number = 30;
     const SimTimeIncrementSeconds:number = 0.01;
-    const ZoomFactor:number = 0.49;
+    const ZoomFactor:number = 4.9;
     const ParallaxDistance:number = 10.0;
 
     function AnimationFrame():void {
         sim.Render(display);
         sim.Update(SimTimeIncrementSeconds);
+        display.RotateY(RadiansFromDegrees(0.1));
         window.setTimeout(AnimationFrame, FrameDelayMillis);
     }
 
@@ -282,6 +354,7 @@ module Electrons {
             sim.InsertParticle(new Particle(new Vector(x, y, z)));
         }
         display = new Display(canvas.width, canvas.height, ZoomFactor, ParallaxDistance);
+        display.RotateX(RadiansFromDegrees(-15));
         AnimationFrame();
     });
 }
