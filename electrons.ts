@@ -179,18 +179,18 @@ module Electrons {
 
         public Erase(context:CanvasRenderingContext2D):void {
             context.clearRect(0, 0, this.pixelsWide, this.pixelsHigh);
-        }
-
-        private Scale(z:number):number {
-            return (this.pixelsWide * this.zoomFactor) / (this.parallaxDistance - z);
+            //context.strokeRect(0, 0, this.pixelsWide, this.pixelsHigh);
         }
 
         private GetCameraCoords(point:Vector):CameraCoords {
-            var rot:Vector = this.rotmat.Rotate(point);
-            var scale:number = this.Scale(rot.getZ());
-            var h:number = scale * (1 + rot.getX());
-            var v:number = scale * (1 - rot.getY());
-            return new CameraCoords(h, v);
+            return this.GetRotatedCameraCoords(this.rotmat.Rotate(point));
+        }
+
+        private GetRotatedCameraCoords(rot:Vector):CameraCoords {
+            var scale:number = this.pixelsWide * this.zoomFactor / (this.parallaxDistance - rot.getZ());
+            var h:number = scale * rot.getX();
+            var v:number = scale * rot.getY();
+            return new CameraCoords(this.pixelsWide/2 + h, this.pixelsHigh/2 - v);
         }
 
         public DrawSphere(
@@ -199,10 +199,19 @@ module Electrons {
             radius:number,
             color:string):void
         {
-            let crot:Vector = this.rotmat.Rotate(center);
-            let origin:CameraCoords = this.GetCameraCoords(center);
-            let theta:number = Math.asin(radius/(this.parallaxDistance - crot.getZ()));
-            let cradius:number = this.parallaxDistance * this.Scale(crot.getZ()) * Math.tan(theta);
+            // NOTE: This isn't quite right. The actual projection of a sphere
+            // onto the pinhole camera screen is an ellipse, not a circle.
+            // This will matter only for very low zoom with very close spheres
+            // that are far off center.
+
+            let rotCenter:Vector = this.rotmat.Rotate(center);
+            let origin:CameraCoords = this.GetRotatedCameraCoords(rotCenter);
+            let rho:number = radius / this.parallaxDistance;
+            let xp:number = rho * Math.sqrt(this.parallaxDistance*this.parallaxDistance - radius*radius);
+            let zp:number = rho * radius;
+            let rotTangent:Vector = rotCenter.add(new Vector(xp, 0, zp));
+            let edge:CameraCoords = this.GetRotatedCameraCoords(rotTangent);
+            let cradius:number = Math.abs(edge.getHor() - origin.getHor());
 
             context.beginPath();
             context.arc(origin.getHor(), origin.getVer(), cradius, 0, 2*Math.PI, true);
@@ -334,8 +343,8 @@ module Electrons {
     var display:Display;
     const FrameDelayMillis:number = 30;
     const SimTimeIncrementSeconds:number = 0.01;
-    const ZoomFactor:number = 4.9;
-    const ParallaxDistance:number = 10.0;
+    const ZoomFactor:number = 7;
+    const ParallaxDistance:number = 15.0;
 
     function AnimationFrame():void {
         sim.Render(display);
