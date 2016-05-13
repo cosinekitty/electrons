@@ -197,7 +197,9 @@ module Electrons {
             context:CanvasRenderingContext2D,
             center:Vector,
             radius:number,
-            color:string):void
+            frontColor:string,
+            backColor:string = null,
+            zLimit:number = null):number
         {
             // NOTE: This isn't quite right. The actual projection of a sphere
             // onto the pinhole camera screen is an ellipse, not a circle.
@@ -215,9 +217,15 @@ module Electrons {
 
             context.beginPath();
             context.arc(origin.getHor(), origin.getVer(), cradius, 0, 2*Math.PI, true);
-            context.strokeStyle = color;
+            if ((backColor !== null) && (zLimit !== null) && (rotCenter.getZ() < zLimit)) {
+                context.strokeStyle = backColor;
+            } else {
+                context.strokeStyle = frontColor;
+            }
             context.lineWidth = 1;
             context.stroke();
+
+            return rotTangent.getZ();   // the z-value beneath which an electron is "around the bend"
         }
 
         public DrawLine(
@@ -326,14 +334,14 @@ module Electrons {
         }
 
         public Render(display:Display):void {
-            var context:CanvasRenderingContext2D = canvas.getContext('2d');
+            let context:CanvasRenderingContext2D = canvas.getContext('2d');
             display.Erase(context);
-            display.DrawSphere(context, this.sphereCenter, this.sphereRadius, '#77f');
+            let zbend:number = display.DrawSphere(context, this.sphereCenter, this.sphereRadius, '#77f');
             display.DrawAxis(context, 'x', this.sphereCenter, this.xAxis, '#f00');
             display.DrawAxis(context, 'y', this.sphereCenter, this.yAxis, '#f00');
             display.DrawAxis(context, 'z', this.sphereCenter, this.zAxis, '#f00');
             for (let i:number = 0; i < this.particleList.length; ++i) {
-                display.DrawSphere(context, this.particleList[i].GetPosition(), 0.01, '#000');
+                display.DrawSphere(context, this.particleList[i].GetPosition(), 0.01, '#000', '#aaa', zbend);
             }
         }
     }
