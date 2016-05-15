@@ -309,6 +309,8 @@ module Electrons {
         private yAxis:Vector = new Vector(0, 1, 0);
         private zAxis:Vector = new Vector(0, 0, 1);
 
+        public EnableConnectNearestNeighbors:boolean = true;
+
         public constructor() {
             this.particleList = [];
         }
@@ -336,12 +338,42 @@ module Electrons {
         public Render(display:Display):void {
             let context:CanvasRenderingContext2D = canvas.getContext('2d');
             display.Erase(context);
-            let zbend:number = display.DrawSphere(context, this.sphereCenter, this.sphereRadius, '#77f');
-            display.DrawAxis(context, 'x', this.sphereCenter, this.xAxis, '#f00');
-            display.DrawAxis(context, 'y', this.sphereCenter, this.yAxis, '#f00');
-            display.DrawAxis(context, 'z', this.sphereCenter, this.zAxis, '#f00');
+            let zbend:number = display.DrawSphere(context, this.sphereCenter, this.sphereRadius, '#fff');
+            //display.DrawAxis(context, 'x', this.sphereCenter, this.xAxis, '#f00');
+            //display.DrawAxis(context, 'y', this.sphereCenter, this.yAxis, '#f00');
+            //display.DrawAxis(context, 'z', this.sphereCenter, this.zAxis, '#f00');
             for (let i:number = 0; i < this.particleList.length; ++i) {
                 display.DrawSphere(context, this.particleList[i].GetPosition(), 0.01, '#000', '#aaa', zbend);
+            }
+
+            if (this.EnableConnectNearestNeighbors) {
+                // Find the smallest distance between any two particles.
+                let minDistance:number = null;
+                for (let i:number = 0; i < this.particleList.length - 1; ++i) {
+                    let ipos:Vector = this.particleList[i].GetPosition();
+                    for (let j:number = i+1; j < this.particleList.length; ++j) {
+                        let jpos:Vector = this.particleList[j].GetPosition();
+                        let distance:number = Vector.Distance(ipos, jpos);
+                        if ((minDistance === null) || (distance < minDistance)) {
+                            minDistance = distance;
+                        }
+                    }
+                }
+
+                if (minDistance !== null) {
+                    // Connect all pairs of particles whose distance is not much larger than the minimum.
+                    let threshold:number = 1.2 * minDistance;
+                    for (let i:number = 0; i < this.particleList.length - 1; ++i) {
+                        let ipos:Vector = this.particleList[i].GetPosition();
+                        for (let j:number = i+1; j < this.particleList.length; ++j) {
+                            let jpos:Vector = this.particleList[j].GetPosition();
+                            let distance:number = Vector.Distance(ipos, jpos);
+                            if (distance <= threshold) {
+                                display.DrawLine(context, ipos, jpos, '#a7a');
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -350,7 +382,7 @@ module Electrons {
     var sim:Simulation;
     var display:Display;
     const FrameDelayMillis:number = 30;
-    const SimTimeIncrementSeconds:number = 0.01;
+    const SimTimeIncrementSeconds:number = 0.001;
     const ZoomFactor:number = 7;
     const ParallaxDistance:number = 15.0;
 
@@ -364,7 +396,7 @@ module Electrons {
     $(document).ready(function(){
         canvas = <HTMLCanvasElement> document.getElementById('SimCanvas');
         sim = new Simulation();
-        for (let i:number = 0; i < 17; ++i) {
+        for (let i:number = 0; i < 48; ++i) {
             let x:number = Math.random();
             let y:number = Math.random();
             let z:number = Math.random();
