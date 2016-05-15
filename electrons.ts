@@ -182,6 +182,10 @@ module Electrons {
             //context.strokeRect(0, 0, this.pixelsWide, this.pixelsHigh);
         }
 
+        public RotatePoint(point:Vector):Vector {
+            return this.rotmat.Rotate(point);
+        }
+
         private GetCameraCoords(point:Vector):CameraCoords {
             return this.GetRotatedCameraCoords(this.rotmat.Rotate(point));
         }
@@ -362,14 +366,17 @@ module Electrons {
 
                 if (minDistance !== null) {
                     // Connect all pairs of particles whose distance is not much larger than the minimum.
-                    let threshold:number = 1.2 * minDistance;
+                    let threshold:number = 1.01 * minDistance;
                     for (let i:number = 0; i < this.particleList.length - 1; ++i) {
                         let ipos:Vector = this.particleList[i].GetPosition();
+                        let irot:Vector = display.RotatePoint(ipos);
                         for (let j:number = i+1; j < this.particleList.length; ++j) {
                             let jpos:Vector = this.particleList[j].GetPosition();
+                            let jrot:Vector = display.RotatePoint(jpos);
                             let distance:number = Vector.Distance(ipos, jpos);
                             if (distance <= threshold) {
-                                display.DrawLine(context, ipos, jpos, '#a7a');
+                                let color:string = (irot.getZ() > 0 && jrot.getZ() > 0) ? '#000' : '#aca';
+                                display.DrawLine(context, ipos, jpos, color);
                             }
                         }
                     }
@@ -382,25 +389,30 @@ module Electrons {
     var sim:Simulation;
     var display:Display;
     const FrameDelayMillis:number = 30;
-    const SimTimeIncrementSeconds:number = 0.001;
+    const SimTimeIncrementSeconds:number = 0.005;
     const ZoomFactor:number = 7;
     const ParallaxDistance:number = 15.0;
 
     function AnimationFrame():void {
         sim.Render(display);
         sim.Update(SimTimeIncrementSeconds);
-        display.RotateY(RadiansFromDegrees(0.1));
+        display.RotateY(RadiansFromDegrees(0.15));
         window.setTimeout(AnimationFrame, FrameDelayMillis);
+    }
+
+    function RandomUnitVector():Vector {
+        let x:number = 2*Math.random() - 1;
+        let y:number = 2*Math.random() - 1;
+        let z:number = 2*Math.random() - 1;
+        return new Vector(x, y, z).UnitVector();
     }
 
     $(document).ready(function(){
         canvas = <HTMLCanvasElement> document.getElementById('SimCanvas');
         sim = new Simulation();
-        for (let i:number = 0; i < 48; ++i) {
-            let x:number = Math.random();
-            let y:number = Math.random();
-            let z:number = Math.random();
-            sim.InsertParticle(new Particle(new Vector(x, y, z)));
+        for (let i:number = 0; i < 72; ++i) {
+            let v:Vector = RandomUnitVector();
+            sim.InsertParticle(new Particle(v));
         }
         display = new Display(canvas.width, canvas.height, ZoomFactor, ParallaxDistance);
         display.RotateX(RadiansFromDegrees(-15));
