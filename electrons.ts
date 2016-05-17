@@ -155,8 +155,6 @@ module Electrons {
     }
 
     class Display {
-        private rotmat:RotationMatrix = RotationMatrix.Unrotated;
-
         public constructor(
             private pixelsWide:number,          // number of pixels wide in canvas
             private pixelsHigh:number,          // number of pixels high in canvas
@@ -165,35 +163,15 @@ module Electrons {
         {
         }
 
-        public RotateX(radians:number):void {
-            this.rotmat = this.rotmat.RotateX(radians);
-        }
-
-        public RotateY(radians:number):void {
-            this.rotmat = this.rotmat.RotateY(radians);
-        }
-
-        public RotateZ(radians:number):void {
-            this.rotmat = this.rotmat.RotateZ(radians);
-        }
-
         public Erase(context:CanvasRenderingContext2D):void {
             context.clearRect(0, 0, this.pixelsWide, this.pixelsHigh);
             //context.strokeRect(0, 0, this.pixelsWide, this.pixelsHigh);
         }
 
-        public RotatePoint(point:Vector):Vector {
-            return this.rotmat.Rotate(point);
-        }
-
         private GetCameraCoords(point:Vector):CameraCoords {
-            return this.GetRotatedCameraCoords(this.rotmat.Rotate(point));
-        }
-
-        private GetRotatedCameraCoords(rot:Vector):CameraCoords {
-            var scale:number = this.pixelsWide * this.zoomFactor / (this.parallaxDistance - rot.getZ());
-            var h:number = scale * rot.getX();
-            var v:number = scale * rot.getY();
+            var scale:number = this.pixelsWide * this.zoomFactor / (this.parallaxDistance - point.getZ());
+            var h:number = scale * point.getX();
+            var v:number = scale * point.getY();
             return new CameraCoords(this.pixelsWide/2 + h, this.pixelsHigh/2 - v);
         }
 
@@ -210,18 +188,17 @@ module Electrons {
             // This will matter only for very low zoom with very close spheres
             // that are far off center.
 
-            let rotCenter:Vector = this.rotmat.Rotate(center);
-            let origin:CameraCoords = this.GetRotatedCameraCoords(rotCenter);
+            let origin:CameraCoords = this.GetCameraCoords(center);
             let rho:number = radius / this.parallaxDistance;
             let xp:number = rho * Math.sqrt(this.parallaxDistance*this.parallaxDistance - radius*radius);
             let zp:number = rho * radius;
-            let rotTangent:Vector = rotCenter.add(new Vector(xp, 0, zp));
-            let edge:CameraCoords = this.GetRotatedCameraCoords(rotTangent);
+            let tangent:Vector = center.add(new Vector(xp, 0, zp));
+            let edge:CameraCoords = this.GetCameraCoords(tangent);
             let cradius:number = Math.abs(edge.getHor() - origin.getHor());
 
             context.beginPath();
             context.arc(origin.getHor(), origin.getVer(), cradius, 0, 2*Math.PI, true);
-            if ((backColor !== null) && (zLimit !== null) && (rotCenter.getZ() < zLimit)) {
+            if ((backColor !== null) && (zLimit !== null) && (center.getZ() < zLimit)) {
                 context.strokeStyle = backColor;
             } else {
                 context.strokeStyle = frontColor;
@@ -229,7 +206,7 @@ module Electrons {
             context.lineWidth = 1;
             context.stroke();
 
-            return rotTangent.getZ();   // the z-value beneath which an electron is "around the bend"
+            return tangent.getZ();   // the z-value beneath which an electron is "around the bend"
         }
 
         public DrawLine(
@@ -305,6 +282,10 @@ module Electrons {
             // to get tangential component.
             let radialForce:Vector = this.position.mul(this.force.dot(this.position));
             return this.force.sub(radialForce);
+        }
+
+        public Rotate(rotmat:RotationMatrix):void {
+            this.position = rotmat.Rotate(this.position);
         }
     }
 
@@ -398,18 +379,22 @@ module Electrons {
                     let threshold:number = 1.02 * minDistance;
                     for (let i:number = 0; i < this.particleList.length - 1; ++i) {
                         let ipos:Vector = this.particleList[i].GetPosition();
-                        let irot:Vector = display.RotatePoint(ipos);
                         for (let j:number = i+1; j < this.particleList.length; ++j) {
                             let jpos:Vector = this.particleList[j].GetPosition();
-                            let jrot:Vector = display.RotatePoint(jpos);
                             let distance:number = Vector.Distance(ipos, jpos);
                             if (distance <= threshold) {
-                                let color:string = (irot.getZ() > 0 && jrot.getZ() > 0) ? '#000' : '#aca';
+                                let color:string = (ipos.getZ() > 0 && jpos.getZ() > 0) ? '#000' : '#aca';
                                 display.DrawLine(context, ipos, jpos, color);
                             }
                         }
                     }
                 }
+            }
+        }
+
+        public Rotate(rotmat:RotationMatrix):void {
+            for (let p of this.particleList) {
+                p.Rotate(rotmat);
             }
         }
     }
@@ -424,11 +409,13 @@ module Electrons {
     const MinParticleCount:number = 1;
     const MaxParticleCount:number = 200;
     const InitialParticleCount:number = 12;
+    var spinner:RotationMatrix = RotationMatrix.Unrotated.RotateY(RadiansFromDegrees(0.15));
+    var initialTilt:RotationMatrix = RotationMatrix.Unrotated.RotateX(RadiansFromDegrees(-15.0));
 
     function AnimationFrame():void {
         sim.Render(display);
         sim.Update();
-        display.RotateY(RadiansFromDegrees(0.15));
+        sim.Rotate(spinner);
         window.setTimeout(AnimationFrame, FrameDelayMillis);
     }
 
@@ -443,12 +430,12 @@ module Electrons {
         ballCountDiv = $('#BallCountDiv');
         canvas = <HTMLCanvasElement> document.getElementById('SimCanvas');
         sim = new Simulation();
-        for (let i:number = 0; i < 4; ++i) {
+        for (let i:number = 0; i < InitialParticleCount; ++i) {
             sim.InsertParticle(new Particle(RandomUnitVector()));
         }
         ballCountDiv.text(sim.ParticleCount());
         display = new Display(canvas.width, canvas.height, ZoomFactor, ParallaxDistance);
-        display.RotateX(RadiansFromDegrees(-15));
+        sim.Rotate(initialTilt);
         $('#IncrementButton').click(function(){
             if (sim.ParticleCount() < MaxParticleCount) {
                 sim.InsertParticle(new Particle(RandomUnitVector()));
