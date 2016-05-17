@@ -289,19 +289,22 @@ module Electrons {
             other.force = other.force.sub(force);
         }
 
-        public Migrate(dt:number):void {
+        public Migrate(positionShift:Vector):void {
             // Update the position of the particle.
             // Move the particle in the direction of the force, but constrain
             // to the surface of the unit sphere.
+            this.position = this.position.add(positionShift).UnitVector();
+        }
+
+        public TangentialForce():Vector {
             // Calculate the tangential component of the force along
             // the sphere's surface.
             // Force = Force_radial + Force_tangential
             // Force_tangential = Force - Force_radial
             // So calculate radial component using dot product and subtract
             // to get tangential component.
-            let forceRadial:Vector = this.position.mul(this.force.dot(this.position));
-            let forceTangential:Vector = this.force.sub(forceRadial);
-            this.position = this.position.add(forceTangential.mul(dt)).UnitVector();
+            let radialForce:Vector = this.position.mul(this.force.dot(this.position));
+            return this.force.sub(radialForce);
         }
     }
 
@@ -323,7 +326,17 @@ module Electrons {
             this.particleList.push(p);
         }
 
-        public Update(dt:number):void {
+        public RemoveParticle():void {
+            if (this.particleList.length > 1) {
+                this.particleList.pop();
+            }
+        }
+
+        public ParticleCount():number {
+            return this.particleList.length;
+        }
+
+        public Update():void {
             for (let i=0; i < this.particleList.length; ++i) {
                 this.particleList[i].ResetForce();
             }
@@ -334,15 +347,31 @@ module Electrons {
                 }
             }
 
-            for (let i=0; i < this.particleList.length; ++i) {
-                this.particleList[i].Migrate(dt);
+            let tangentialForceList:Vector[] = [];
+            let maxForceMag:number = null;
+            for (let i:number=0; i < this.particleList.length; ++i) {
+                let tf:Vector = this.particleList[i].TangentialForce();
+                let forceMag:number = tf.abs();
+                tangentialForceList.push(tf);
+                if ((maxForceMag === null) || (maxForceMag < forceMag)) {
+                    maxForceMag = forceMag;
+                }
+            }
+
+            let dt:number = 0.08 / maxForceMag;
+            if (dt > 0.005) {
+                dt = 0.005;
+            }
+
+            for (let i:number=0; i < this.particleList.length; ++i) {
+                this.particleList[i].Migrate(tangentialForceList[i].mul(dt));
             }
         }
 
         public Render(display:Display):void {
             let context:CanvasRenderingContext2D = canvas.getContext('2d');
             display.Erase(context);
-            let zbend:number = display.DrawSphere(context, this.sphereCenter, this.sphereRadius, '#fff');
+            let zbend:number = display.DrawSphere(context, this.sphereCenter, this.sphereRadius, '#eee');
             //display.DrawAxis(context, 'x', this.sphereCenter, this.xAxis, '#f00');
             //display.DrawAxis(context, 'y', this.sphereCenter, this.yAxis, '#f00');
             //display.DrawAxis(context, 'z', this.sphereCenter, this.zAxis, '#f00');
@@ -366,7 +395,7 @@ module Electrons {
 
                 if (minDistance !== null) {
                     // Connect all pairs of particles whose distance is not much larger than the minimum.
-                    let threshold:number = 1.01 * minDistance;
+                    let threshold:number = 1.02 * minDistance;
                     for (let i:number = 0; i < this.particleList.length - 1; ++i) {
                         let ipos:Vector = this.particleList[i].GetPosition();
                         let irot:Vector = display.RotatePoint(ipos);
@@ -385,17 +414,17 @@ module Electrons {
         }
     }
 
+    var ballCountDiv:JQuery;
     var canvas:HTMLCanvasElement;
     var sim:Simulation;
     var display:Display;
     const FrameDelayMillis:number = 30;
-    const SimTimeIncrementSeconds:number = 0.005;
     const ZoomFactor:number = 7;
     const ParallaxDistance:number = 15.0;
 
     function AnimationFrame():void {
         sim.Render(display);
-        sim.Update(SimTimeIncrementSeconds);
+        sim.Update();
         display.RotateY(RadiansFromDegrees(0.15));
         window.setTimeout(AnimationFrame, FrameDelayMillis);
     }
@@ -408,14 +437,23 @@ module Electrons {
     }
 
     $(document).ready(function(){
+        ballCountDiv = $('#BallCountDiv');
         canvas = <HTMLCanvasElement> document.getElementById('SimCanvas');
         sim = new Simulation();
-        for (let i:number = 0; i < 72; ++i) {
-            let v:Vector = RandomUnitVector();
-            sim.InsertParticle(new Particle(v));
+        for (let i:number = 0; i < 4; ++i) {
+            sim.InsertParticle(new Particle(RandomUnitVector()));
         }
+        ballCountDiv.text(sim.ParticleCount());
         display = new Display(canvas.width, canvas.height, ZoomFactor, ParallaxDistance);
         display.RotateX(RadiansFromDegrees(-15));
+        $('#IncrementButton').click(function(){
+            sim.InsertParticle(new Particle(RandomUnitVector()));
+            ballCountDiv.text(sim.ParticleCount());
+        });
+        $('#DecrementButton').click(function(){
+            sim.InsertParticle(new Particle(RandomUnitVector()));
+            ballCountDiv.text(sim.ParticleCount());
+        });
         AnimationFrame();
     });
 }
