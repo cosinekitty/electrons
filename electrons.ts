@@ -421,6 +421,9 @@ module Electrons {
     const FrameDelayMillis:number = 30;
     const ZoomFactor:number = 7;
     const ParallaxDistance:number = 15.0;
+    const MinParticleCount:number = 1;
+    const MaxParticleCount:number = 200;
+    const InitialParticleCount:number = 12;
 
     function AnimationFrame():void {
         sim.Render(display);
@@ -447,12 +450,16 @@ module Electrons {
         display = new Display(canvas.width, canvas.height, ZoomFactor, ParallaxDistance);
         display.RotateX(RadiansFromDegrees(-15));
         $('#IncrementButton').click(function(){
-            sim.InsertParticle(new Particle(RandomUnitVector()));
-            ballCountDiv.text(sim.ParticleCount());
+            if (sim.ParticleCount() < MaxParticleCount) {
+                sim.InsertParticle(new Particle(RandomUnitVector()));
+                ballCountDiv.text(sim.ParticleCount());
+            }
         });
         $('#DecrementButton').click(function(){
-            sim.InsertParticle(new Particle(RandomUnitVector()));
-            ballCountDiv.text(sim.ParticleCount());
+            if (sim.ParticleCount() > MinParticleCount) {
+                sim.RemoveParticle();
+                ballCountDiv.text(sim.ParticleCount());
+            }
         });
         AnimationFrame();
     });
