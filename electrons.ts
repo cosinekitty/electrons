@@ -225,17 +225,6 @@ module Electrons {
             context.lineWidth = 1;
             context.stroke();
         }
-
-        public DrawAxis(
-            context:CanvasRenderingContext2D,
-            name:string,
-            startpoint:Vector,
-            endpoint:Vector,
-            color:string):void
-        {
-            this.DrawLine(context, startpoint, endpoint, color);
-            // FIXFIXFIX - render the name of the axis
-        }
     }
 
     class Particle {
@@ -353,9 +342,6 @@ module Electrons {
             let context:CanvasRenderingContext2D = canvas.getContext('2d');
             display.Erase(context);
             let zbend:number = display.DrawSphere(context, this.sphereCenter, this.sphereRadius, '#eee');
-            //display.DrawAxis(context, 'x', this.sphereCenter, this.xAxis, '#f00');
-            //display.DrawAxis(context, 'y', this.sphereCenter, this.yAxis, '#f00');
-            //display.DrawAxis(context, 'z', this.sphereCenter, this.zAxis, '#f00');
             for (let i:number = 0; i < this.particleList.length; ++i) {
                 display.DrawSphere(context, this.particleList[i].GetPosition(), 0.01, '#000', '#aaa', zbend);
             }
