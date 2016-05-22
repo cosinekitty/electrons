@@ -31,6 +31,10 @@ module Electrons {
             return Math.sqrt(dx*dx + dy*dy + dz*dz);
         }
 
+        public static Midpoint(a:Vector, b:Vector):Vector {
+            return new Vector((a.x + b.x)/2, (a.y + b.y)/2, (a.z + b.z)/2);
+        }
+
         public static Cross(a:Vector, b:Vector):Vector {
             return new Vector(
                 a.y*b.z - a.z*b.y,
@@ -177,9 +181,7 @@ module Electrons {
             context:CanvasRenderingContext2D,
             center:Vector,
             radius:number,
-            frontColor:string,
-            backColor:string = null,
-            zLimit:number = null):number
+            color:string):number
         {
             // NOTE: This isn't quite right. The actual projection of a sphere
             // onto the pinhole camera screen is an ellipse, not a circle.
@@ -196,11 +198,7 @@ module Electrons {
 
             context.beginPath();
             context.arc(origin.getHor(), origin.getVer(), cradius, 0, 2*Math.PI, true);
-            if ((backColor !== null) && (zLimit !== null) && (center.getZ() < zLimit)) {
-                context.strokeStyle = backColor;
-            } else {
-                context.strokeStyle = frontColor;
-            }
+            context.strokeStyle = color;
             context.lineWidth = 1;
             context.stroke();
 
@@ -211,15 +209,23 @@ module Electrons {
             context:CanvasRenderingContext2D,
             startpoint:Vector,
             endpoint:Vector,
-            color:string):void
+            startcolor:string,
+            endcolor:string):void
         {
             let startcam:CameraCoords = this.GetCameraCoords(startpoint);
             let endcam:CameraCoords = this.GetCameraCoords(endpoint);
 
+            let gradient:CanvasGradient = context.createLinearGradient(
+                startcam.getHor(), startcam.getVer(),
+                endcam.getHor(), endcam.getVer());
+
+            gradient.addColorStop(0, startcolor);
+            gradient.addColorStop(1, endcolor);
+
             context.beginPath();
             context.moveTo(startcam.getHor(), startcam.getVer());
             context.lineTo(endcam.getHor(), endcam.getVer());
-            context.strokeStyle = color;
+            context.strokeStyle = gradient;
             context.lineWidth = 1;
             context.stroke();
         }
@@ -386,8 +392,8 @@ module Electrons {
             this.DrawParticleCountControls(context);
 
             let zbend:number = display.DrawSphere(context, this.sphereCenter, this.sphereRadius, '#eee');
-            for (let i:number = 0; i < this.particleList.length; ++i) {
-                display.DrawSphere(context, this.particleList[i].GetPosition(), 0.01, '#000', '#aaa', zbend);
+            for (let p of this.particleList) {
+                display.DrawSphere(context, p.GetPosition(), 0.01, this.PointColor(p.GetPosition(), zbend));
             }
 
             if (this.EnableConnectNearestNeighbors) {
@@ -409,17 +415,27 @@ module Electrons {
                     let threshold:number = 1.02 * minDistance;
                     for (let i:number = 0; i < this.particleList.length - 1; ++i) {
                         let ipos:Vector = this.particleList[i].GetPosition();
+                        let icolor:string = this.PointColor(ipos, zbend);
                         for (let j:number = i+1; j < this.particleList.length; ++j) {
                             let jpos:Vector = this.particleList[j].GetPosition();
                             let distance:number = Vector.Distance(ipos, jpos);
                             if (distance <= threshold) {
-                                let color:string = (ipos.getZ() > 0 && jpos.getZ() > 0) ? '#000' : '#aca';
-                                display.DrawLine(context, ipos, jpos, color);
+                                let jcolor:string = this.PointColor(jpos, zbend);
+                                display.DrawLine(context, ipos, jpos, icolor, jcolor);
                             }
                         }
                     }
                 }
             }
+        }
+
+        private PointColor(p:Vector, zlimit:number):string {
+            let frac:number = (zlimit - p.getZ()) / (zlimit - (-1.1));
+            if (frac < 0) {
+                return 'rgb(0,0,0)';
+            }
+            let c:number = Math.round(255 * frac);
+            return 'rgb(' + c + ',' + c + ',' + c + ')';
         }
 
         public Rotate(rotmat:RotationMatrix):void {
