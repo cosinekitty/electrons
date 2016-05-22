@@ -2,8 +2,6 @@
     electrons.ts  -  Don Cross  -  http://cosinekitty.com
 */
 
-/// <reference path="jquery.d.ts" />
-
 module Electrons {
     function RadiansFromDegrees(d:number):number {
         return d * (Math.PI / 180);
@@ -460,11 +458,10 @@ module Electrons {
     function OnCanvasClick(ev:MouseEvent) {
         let x:number = ev.pageX - canvas.offsetLeft;
         let y:number = ev.pageY - canvas.offsetTop;
-        //console.log('x=' + x + ', y=' + y);
         sim.CanvasMouseClick(x, y);
     }
 
-    $(document).ready(function(){
+    window.onload = function() {
         canvas = <HTMLCanvasElement> document.getElementById('SimCanvas');
         canvas.addEventListener('click', OnCanvasClick, false);
         sim = new Simulation();
@@ -474,5 +471,5 @@ module Electrons {
         display = new Display(canvas.width, canvas.height, ZoomFactor, ParallaxDistance);
         sim.Rotate(initialTilt);
         AnimationFrame();
-    });
+    }
 }
