@@ -429,13 +429,16 @@ module Electrons {
             }
         }
 
+        private ColorRound(x:number):number {
+            return Math.round(255 * Math.min(1, Math.max(0, x)));
+        }
+
         private PointColor(p:Vector, zlimit:number):string {
             let frac:number = (zlimit - p.getZ()) / (zlimit - (-1.1));
-            if (frac < 0) {
-                return 'rgb(0,0,0)';
-            }
-            let c:number = Math.round(255 * frac);
-            return 'rgb(' + c + ',' + c + ',' + c + ')';
+            let red:number = this.ColorRound(0.2 + (0.8*frac));
+            let blue:number = this.ColorRound(frac);
+            let green:number = this.ColorRound(frac);
+            return 'rgb(' + red + ',' + green + ',' + blue + ')';
         }
 
         public Rotate(rotmat:RotationMatrix):void {
@@ -454,13 +457,15 @@ module Electrons {
     const MinParticleCount:number = 1;
     const MaxParticleCount:number = 200;
     const InitialParticleCount:number = 12;
-    var spinner:RotationMatrix = RotationMatrix.Unrotated.RotateY(RadiansFromDegrees(0.15));
+    var ySpinner:RotationMatrix = RotationMatrix.Unrotated.RotateY(RadiansFromDegrees(0.15));
+    var xSpinner:RotationMatrix = RotationMatrix.Unrotated.RotateX(RadiansFromDegrees(0.0377));
     var initialTilt:RotationMatrix = RotationMatrix.Unrotated.RotateX(RadiansFromDegrees(-15.0));
 
     function AnimationFrame():void {
         sim.Render(display);
         sim.Update();
-        sim.Rotate(spinner);
+        sim.Rotate(ySpinner);
+        sim.Rotate(xSpinner);
         window.setTimeout(AnimationFrame, FrameDelayMillis);
     }
 
