@@ -436,7 +436,7 @@ module Electrons {
         private PointColor(p:Vector, zlimit:number):string {
             let frac:number = (zlimit - p.getZ()) / (zlimit - (-1.1));
             let red:number = this.ColorRound(0.2 + (0.8*frac));
-            let blue:number = this.ColorRound(frac);
+            let blue:number = this.ColorRound(1.2*frac);
             let green:number = this.ColorRound(frac);
             return 'rgb(' + red + ',' + green + ',' + blue + ')';
         }
@@ -451,6 +451,7 @@ module Electrons {
     var canvas:HTMLCanvasElement;
     var sim:Simulation;
     var display:Display;
+    const UpdatesPerFrame:number = 10;
     const FrameDelayMillis:number = 30;
     const ZoomFactor:number = 7;
     const ParallaxDistance:number = 15.0;
@@ -463,7 +464,9 @@ module Electrons {
 
     function AnimationFrame():void {
         sim.Render(display);
-        sim.Update();
+        for (let i=0; i < UpdatesPerFrame; ++i) {
+            sim.Update();
+        }
         sim.Rotate(ySpinner);
         sim.Rotate(xSpinner);
         window.setTimeout(AnimationFrame, FrameDelayMillis);
