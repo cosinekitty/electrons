@@ -418,22 +418,24 @@ module Electrons {
                     }
                 }
 
-                if (minDistance !== null) {
-                    // Connect all pairs of particles whose distance is not much larger than the minimum.
-                    let threshold:number = 1.01 * minDistance;
-                    for (let i:number = 0; i < this.particleList.length - 1; ++i) {
-                        if (!isConnectedIndex[i]) {
-                            let ipos:Vector = this.particleList[i].GetPosition();
-                            let icolor:string = this.PointColor(ipos, zbend);
-                            for (let j:number = i+1; j < this.particleList.length; ++j) {
-                                if (!isConnectedIndex[j]) {
-                                    let jpos:Vector = this.particleList[j].GetPosition();
-                                    let distance:number = Vector.Distance(ipos, jpos);
-                                    if (distance <= threshold) {
-                                        let jcolor:string = this.PointColor(jpos, zbend);
-                                        display.DrawLine(context, ipos, jpos, icolor, jcolor, linedash[level]);
-                                        nextIsConnectedIndex[i] = nextIsConnectedIndex[j] = true;
-                                    }
+                if (minDistance === null) {
+                    break;      // nothing more to connect
+                }
+
+                // Connect all pairs of particles whose distance is not much larger than the minimum.
+                let threshold:number = 1.01 * minDistance;
+                for (let i:number = 0; i < this.particleList.length - 1; ++i) {
+                    if (!isConnectedIndex[i]) {
+                        let ipos:Vector = this.particleList[i].GetPosition();
+                        let icolor:string = this.PointColor(ipos, zbend);
+                        for (let j:number = i+1; j < this.particleList.length; ++j) {
+                            if (!isConnectedIndex[j]) {
+                                let jpos:Vector = this.particleList[j].GetPosition();
+                                let distance:number = Vector.Distance(ipos, jpos);
+                                if (distance <= threshold) {
+                                    let jcolor:string = this.PointColor(jpos, zbend);
+                                    display.DrawLine(context, ipos, jpos, icolor, jcolor, linedash[level]);
+                                    nextIsConnectedIndex[i] = nextIsConnectedIndex[j] = true;
                                 }
                             }
                         }
