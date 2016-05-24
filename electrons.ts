@@ -8,9 +8,9 @@ module Electrons {
     }
 
     class Vector {
-        private x:number;
-        private y:number;
-        private z:number;
+        readonly x:number;
+        readonly y:number;
+        readonly z:number;
 
         public static Zero:Vector = new Vector(0, 0, 0);
 
@@ -20,14 +20,10 @@ module Electrons {
             this.z = _z;
         }
 
-        public getX():number { return this.x; }
-        public getY():number { return this.y; }
-        public getZ():number { return this.z; }
-
         public static Distance(a:Vector, b:Vector):number {
-            var dx:number = b.getX() - a.getX();
-            var dy:number = b.getY() - a.getY();
-            var dz:number = b.getZ() - a.getZ();
+            var dx:number = b.x - a.x;
+            var dy:number = b.y - a.y;
+            var dz:number = b.z - a.z;
             return Math.sqrt(dx*dx + dy*dy + dz*dz);
         }
 
@@ -144,16 +140,13 @@ module Electrons {
     }
 
     class CameraCoords {
-        private hor:number;
-        private ver:number;
+        readonly hor:number;
+        readonly ver:number;
 
         constructor (h:number, v:number) {
             this.hor = h;
             this.ver = v;
         }
-
-        public getHor():number { return this.hor; }
-        public getVer():number { return this.ver; }
     }
 
     class Display {
@@ -171,9 +164,9 @@ module Electrons {
         }
 
         private GetCameraCoords(point:Vector):CameraCoords {
-            var scale:number = this.pixelsWide * this.zoomFactor / (this.parallaxDistance - point.getZ());
-            var h:number = scale * point.getX();
-            var v:number = scale * point.getY();
+            var scale:number = this.pixelsWide * this.zoomFactor / (this.parallaxDistance - point.z);
+            var h:number = scale * point.x;
+            var v:number = scale * point.y;
             return new CameraCoords(this.pixelsWide/2 + h, this.pixelsHigh/2 - v);
         }
 
@@ -202,7 +195,7 @@ module Electrons {
             context.lineWidth = 1;
             context.stroke();
 
-            return tangent.getZ();   // the z-value beneath which an electron is "around the bend"
+            return tangent.z;   // the z-value beneath which an electron is "around the bend"
         }
 
         public DrawLine(
@@ -453,7 +446,7 @@ module Electrons {
         }
 
         private PointColor(p:Vector, zlimit:number):string {
-            let frac:number = (zlimit - p.getZ()) / (zlimit - (-1.1));
+            let frac:number = (zlimit - p.z) / (zlimit - (-1.1));
             let red:number = this.ColorRound(0.2 + (0.8*frac));
             let blue:number = this.ColorRound(1.2*frac);
             let green:number = this.ColorRound(frac);
