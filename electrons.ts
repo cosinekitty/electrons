@@ -317,17 +317,15 @@ module Electrons {
             }
 
             let tangentialForceList:Vector[] = [];
-            let maxForceMag:number = null;
+            let maxForceMag:number = 0;
             for (let i:number=0; i < n; ++i) {
                 let tf:Vector = this.particleList[i].TangentialForce();
                 let forceMag:number = tf.abs();
                 tangentialForceList.push(tf);
-                if ((maxForceMag === null) || (maxForceMag < forceMag)) {
-                    maxForceMag = forceMag;
-                }
+                maxForceMag = Math.max(maxForceMag, forceMag);
             }
 
-            if (maxForceMag !== null) {
+            if (maxForceMag > 0) {
                 // We want to move each electron a small distance compared width
                 // the average distance between particles.
                 // As the number of particles on the sphere increases, the
