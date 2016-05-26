@@ -187,10 +187,10 @@ module Electrons {
             let zp:number = rho * radius;
             let tangent:Vector = center.add(new Vector(xp, 0, zp));
             let edge:CameraCoords = this.GetCameraCoords(tangent);
-            let cradius:number = Math.abs(edge.getHor() - origin.getHor());
+            let cradius:number = Math.abs(edge.hor - origin.hor);
 
             context.beginPath();
-            context.arc(origin.getHor(), origin.getVer(), cradius, 0, 2*Math.PI, true);
+            context.arc(origin.hor, origin.ver, cradius, 0, 2*Math.PI, true);
             context.strokeStyle = color;
             context.lineWidth = 1;
             context.stroke();
@@ -210,16 +210,16 @@ module Electrons {
             let endcam:CameraCoords = this.GetCameraCoords(endpoint);
 
             let gradient:CanvasGradient = context.createLinearGradient(
-                startcam.getHor(), startcam.getVer(),
-                endcam.getHor(), endcam.getVer());
+                startcam.hor, startcam.ver,
+                endcam.hor, endcam.ver);
 
             gradient.addColorStop(0, startcolor);
             gradient.addColorStop(1, endcolor);
 
             context.setLineDash(linedash);
             context.beginPath();
-            context.moveTo(startcam.getHor(), startcam.getVer());
-            context.lineTo(endcam.getHor(), endcam.getVer());
+            context.moveTo(startcam.hor, startcam.ver);
+            context.lineTo(endcam.hor, endcam.ver);
             context.strokeStyle = gradient;
             context.lineWidth = 1;
             context.stroke();
@@ -305,19 +305,20 @@ module Electrons {
         }
 
         public Update():void {
-            for (let i=0; i < this.particleList.length; ++i) {
+            let n:number = this.particleList.length;
+            for (let i=0; i < n; ++i) {
                 this.particleList[i].ResetForce();
             }
 
-            for (let i=0; i < this.particleList.length - 1; ++i) {
-                for (let j=i+1; j < this.particleList.length; ++j) {
+            for (let i=0; i < n-1; ++i) {
+                for (let j=i+1; j < n; ++j) {
                     this.particleList[i].AddForce(this.particleList[j]);
                 }
             }
 
             let tangentialForceList:Vector[] = [];
             let maxForceMag:number = null;
-            for (let i:number=0; i < this.particleList.length; ++i) {
+            for (let i:number=0; i < n; ++i) {
                 let tf:Vector = this.particleList[i].TangentialForce();
                 let forceMag:number = tf.abs();
                 tangentialForceList.push(tf);
@@ -326,13 +327,15 @@ module Electrons {
                 }
             }
 
-            let dt:number = 0.08 / maxForceMag;
-            if (dt > 0.005) {
-                dt = 0.005;
-            }
-
-            for (let i:number=0; i < this.particleList.length; ++i) {
-                this.particleList[i].Migrate(tangentialForceList[i].mul(dt));
+            if (maxForceMag !== null) {
+                // We want to move each electron a small distance compared width
+                // the average distance between particles.
+                // As the number of particles on the sphere increases, the
+                // average distance between them goes down as an inverse square root.
+                let dt:number = 0.005 / (maxForceMag * Math.sqrt(n));
+                for (let i:number=0; i < n; ++i) {
+                    this.particleList[i].Migrate(tangentialForceList[i].mul(dt));
+                }
             }
         }
 
@@ -469,7 +472,7 @@ module Electrons {
     const ParallaxDistance:number = 15.0;
     const MinParticleCount:number = 1;
     const MaxParticleCount:number = 200;
-    const InitialParticleCount:number = 12;
+    const InitialParticleCount:number = 14;
     var ySpinner:RotationMatrix = RotationMatrix.Unrotated.RotateY(RadiansFromDegrees(0.15));
     var xSpinner:RotationMatrix = RotationMatrix.Unrotated.RotateX(RadiansFromDegrees(0.0377));
     var initialTilt:RotationMatrix = RotationMatrix.Unrotated.RotateX(RadiansFromDegrees(-15.0));
