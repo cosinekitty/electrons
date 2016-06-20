@@ -3,9 +3,20 @@
 <head>
     <meta charset="utf-8">
     <title>Electrons on a Sphere</title>
+    <link rel="stylesheet" href="electrons.css">
     <script src="electrons.js"></script>
 </head>
 <body>
     <canvas id="SimCanvas" width="800" height="800"></canvas>
+
+    <div>
+        <form action="" autocomplete="off">
+            <label class="EditLabel">Particle count:
+                <input type="text" id="ParticleCountEditBox" name="ParticleCount" size="5" class="EditBox">
+            </label>
+        </form>
+    </div>
+
+    <div id="ErrorMessageDiv"></div>
 </body>
 </html>

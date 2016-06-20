@@ -3,6 +3,8 @@
 */
 
 module Electrons {
+    'use strict';
+
     function RadiansFromDegrees(d:number):number {
         return d * (Math.PI / 180);
     }
@@ -337,6 +339,7 @@ module Electrons {
             }
         }
 
+/*
         private DrawArrow(
             context:CanvasRenderingContext2D,
             x1:number, y1:number, x2:number, y2:number):void
@@ -370,8 +373,10 @@ module Electrons {
             this.DrawArrow(context, this.UpArrowX1, this.UpArrowY2, this.UpArrowX2, this.UpArrowY1);
             this.DrawArrow(context, this.DownArrowX2, this.DownArrowY1, this.DownArrowX1, this.DownArrowY2);
         }
+*/
 
         public CanvasMouseClick(x:number, y:number):void {
+/*
             if ((x >= this.UpArrowX1) && (x <= this.UpArrowX2) && (y >= this.UpArrowY1) && (y <= this.UpArrowY2)) {
                 this.InsertParticle(new Particle(RandomUnitVector()));
             }
@@ -379,12 +384,23 @@ module Electrons {
             if ((x >= this.DownArrowX1) && (x <= this.DownArrowX2) && (y >= this.DownArrowY1) && (y <= this.DownArrowY2)) {
                 this.RemoveParticle();
             }
+*/
+        }
+
+        public AdjustParticleCount(newCount:number):void {
+            while (this.ParticleCount() < newCount) {
+                this.InsertParticle(new Particle(RandomUnitVector()));
+            }
+
+            while (this.ParticleCount() > newCount) {
+                this.RemoveParticle();
+            }
         }
 
         public Render(display:Display):void {
             let context:CanvasRenderingContext2D = canvas.getContext('2d');
             display.Erase(context);
-            this.DrawParticleCountControls(context);
+            //this.DrawParticleCountControls(context);
 
             let zbend:number = display.DrawSphere(context, this.sphereCenter, this.sphereRadius, '#eee');
             for (let p of this.particleList) {
@@ -498,6 +514,22 @@ module Electrons {
         sim.CanvasMouseClick(x, y);
     }
 
+    function OnEditParticleCount() {
+        var particleCountEdit = <HTMLInputElement> document.getElementById('ParticleCountEditBox');
+        var errorMessageDiv = document.getElementById('ErrorMessageDiv');
+        var text = particleCountEdit.value;
+        if (text.match(/^[0-9]{1,4}$/)) {
+            var count = parseInt(text);
+            if (count >= MinParticleCount && count <= MaxParticleCount) {
+                sim.AdjustParticleCount(count);
+                errorMessageDiv.textContent = '';
+                return;
+            }
+        }
+        errorMessageDiv.textContent = 'Invalid number of particles. Must be an integer in the range ' +
+            MinParticleCount + ' to ' + MaxParticleCount;
+    }
+
     window.onload = function() {
         canvas = <HTMLCanvasElement> document.getElementById('SimCanvas');
         canvas.addEventListener('click', OnCanvasClick, false);
@@ -505,6 +537,22 @@ module Electrons {
         for (let i:number = 0; i < InitialParticleCount; ++i) {
             sim.InsertParticle(new Particle(RandomUnitVector()));
         }
+
+        var particleCountEdit = <HTMLInputElement> document.getElementById('ParticleCountEditBox');
+        particleCountEdit.value = InitialParticleCount.toFixed();
+        particleCountEdit.onblur = OnEditParticleCount;
+        particleCountEdit.setAttribute('min', MinParticleCount.toFixed());
+        particleCountEdit.setAttribute('max', MaxParticleCount.toFixed());
+
+        particleCountEdit.onkeypress = function(evt) {
+            if (evt.keyCode === 13) {
+                OnEditParticleCount();
+                event.preventDefault();
+                return false;
+            }
+            return true;
+        }
+
         display = new Display(canvas.width, canvas.height, ZoomFactor, ParallaxDistance);
         sim.Rotate(initialTilt);
         AnimationFrame();
