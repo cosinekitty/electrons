@@ -523,6 +523,7 @@ module Electrons {
             if (count >= MinParticleCount && count <= MaxParticleCount) {
                 sim.AdjustParticleCount(count);
                 errorMessageDiv.textContent = '';
+                particleCountEdit.blur();
                 return;
             }
         }
