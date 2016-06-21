@@ -7,16 +7,56 @@
     <script src="electrons.js"></script>
 </head>
 <body>
+    <div id="HideShowExplanationButton" class="HideShow"></div>
+    <div id="ExplanationDiv" class="TextBlock">
+        <p>
+            This
+            <a href="https://github.com/cosinekitty/electrons">open-source project</a>
+            is a simulation of mutually repulsive particles confined to the surface of a sphere.
+            The particles try to get as far apart as possible, but they must always remain on the sphere.
+            Eventually they settle down into some stable configuration.
+            The simulation draws matching lines between groups of particles when they settle down
+            into matching distances.
+        </p>
+
+        <p>
+            The pattern formed when the particles settle down is based on the total number of particles.
+            You can change the the number of particles by editing the &quot;Particle Count&quot; box below
+            and pressing Enter. You may choose any number from
+            <span id="MinParticleCountSpan"></span>
+            to
+            <span id="MaxParticleCountSpan"></span>.
+        </p>
+
+        <p>
+            This mathematical construct is called the
+            <a href="https://en.wikipedia.org/wiki/Thomson_problem">Thompson problem</a>.
+            It arises from pre-quantum theories of subatomic structure dating from the early 20th century.
+            Although the Thompson problem no longer has any relevance to particle physics,
+            it remains interesting from a purely mathematical point of view.
+            Numerical simulations like this one can approximate the solution, but it is not
+            known if there is a general formula to express the patterns that are formed.
+        </p>
+
+        <p>
+            If you have questions or comments about this, feel free to contact me:
+        </p>
+
+        <p>
+            <img src="http://cosinekitty.com/contact.png">
+        </p>
+    </div>
+
     <canvas id="SimCanvas" width="800" height="800"></canvas>
 
-    <div>
+    <div class="CenteredControl">
         <form action="" autocomplete="off">
-            <label class="EditLabel">Particle count:
-                <input type="text" id="ParticleCountEditBox" name="ParticleCount" size="5" class="EditBox">
+            <label class="EditLabel">Particle Count:
+                <input type="text" id="ParticleCountEditBox" name="ParticleCount" size="3" maxlength="3" class="EditBox">
             </label>
         </form>
     </div>
 
-    <div id="ErrorMessageDiv"></div>
+    <div id="ErrorMessageDiv" class="CenteredControl ErrorText"></div>
 </body>
 </html>

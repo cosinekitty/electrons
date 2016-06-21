@@ -339,54 +339,6 @@ module Electrons {
             }
         }
 
-/*
-        private DrawArrow(
-            context:CanvasRenderingContext2D,
-            x1:number, y1:number, x2:number, y2:number):void
-        {
-            context.beginPath();
-            context.moveTo(x1, y1);
-            context.lineTo(x2, y1);
-            context.lineTo((x1+x2)/2, y2);
-            context.lineTo(x1, y1);
-            context.strokeStyle = '#000';
-            context.lineWidth = 1;
-            context.stroke();
-        }
-
-        private CountControlX:number = 730;
-        private CountControlY:number = 700;
-        private UpArrowX1 = this.CountControlX + 10;
-        private UpArrowX2 = this.CountControlX + 40;
-        private UpArrowY1 = this.CountControlY - 80;
-        private UpArrowY2 = this.CountControlY - 50;
-
-        private DownArrowX1 = this.CountControlX + 10;
-        private DownArrowX2 = this.CountControlX + 40;
-        private DownArrowY1 = this.CountControlY + 40;
-        private DownArrowY2 = this.CountControlY + 70;
-
-        private DrawParticleCountControls(context:CanvasRenderingContext2D):void {
-            context.font = '20px sans';
-            context.fillText('n=' + this.ParticleCount(), this.CountControlX, this.CountControlY);
-
-            this.DrawArrow(context, this.UpArrowX1, this.UpArrowY2, this.UpArrowX2, this.UpArrowY1);
-            this.DrawArrow(context, this.DownArrowX2, this.DownArrowY1, this.DownArrowX1, this.DownArrowY2);
-        }
-*/
-
-        public CanvasMouseClick(x:number, y:number):void {
-/*
-            if ((x >= this.UpArrowX1) && (x <= this.UpArrowX2) && (y >= this.UpArrowY1) && (y <= this.UpArrowY2)) {
-                this.InsertParticle(new Particle(RandomUnitVector()));
-            }
-
-            if ((x >= this.DownArrowX1) && (x <= this.DownArrowX2) && (y >= this.DownArrowY1) && (y <= this.DownArrowY2)) {
-                this.RemoveParticle();
-            }
-*/
-        }
-
         public AdjustParticleCount(newCount:number):void {
             while (this.ParticleCount() < newCount) {
                 this.InsertParticle(new Particle(RandomUnitVector()));
@@ -400,7 +352,6 @@ module Electrons {
         public Render(display:Display):void {
             let context:CanvasRenderingContext2D = canvas.getContext('2d');
             display.Erase(context);
-            //this.DrawParticleCountControls(context);
 
             let zbend:number = display.DrawSphere(context, this.sphereCenter, this.sphereRadius, '#eee');
             for (let p of this.particleList) {
@@ -486,7 +437,7 @@ module Electrons {
     const ParallaxDistance:number = 15.0;
     const MinParticleCount:number = 1;
     const MaxParticleCount:number = 200;
-    const InitialParticleCount:number = 14;
+    const InitialParticleCount:number = 22;
     var ySpinner:RotationMatrix = RotationMatrix.Unrotated.RotateY(RadiansFromDegrees(0.15));
     var xSpinner:RotationMatrix = RotationMatrix.Unrotated.RotateX(RadiansFromDegrees(0.0377));
     var initialTilt:RotationMatrix = RotationMatrix.Unrotated.RotateX(RadiansFromDegrees(-15.0));
@@ -508,11 +459,13 @@ module Electrons {
         return new Vector(x, y, z).UnitVector();
     }
 
+/*
     function OnCanvasClick(ev:MouseEvent) {
         let x:number = ev.pageX - canvas.offsetLeft;
         let y:number = ev.pageY - canvas.offsetTop;
         sim.CanvasMouseClick(x, y);
     }
+*/
 
     function OnEditParticleCount() {
         var particleCountEdit = <HTMLInputElement> document.getElementById('ParticleCountEditBox');
@@ -532,8 +485,24 @@ module Electrons {
     }
 
     window.onload = function() {
+        var explanationDiv = document.getElementById('ExplanationDiv');
+        var hideShowExplanationButton = document.getElementById('HideShowExplanationButton');
+        var hidePrompt = '&laquo;&nbsp;Hide';
+        var showPrompt = 'What is this?&nbsp;&raquo;';
+        explanationDiv.style.display = 'none';
+        hideShowExplanationButton.innerHTML = showPrompt;
+        hideShowExplanationButton.onclick = function() {
+            if (explanationDiv.style.display === 'none') {
+                explanationDiv.style.display = '';
+                hideShowExplanationButton.innerHTML = hidePrompt;
+            } else {
+                explanationDiv.style.display = 'none';
+                hideShowExplanationButton.innerHTML = showPrompt;
+            }
+        }
+
         canvas = <HTMLCanvasElement> document.getElementById('SimCanvas');
-        canvas.addEventListener('click', OnCanvasClick, false);
+        //canvas.addEventListener('click', OnCanvasClick, false);
         sim = new Simulation();
         for (let i:number = 0; i < InitialParticleCount; ++i) {
             sim.InsertParticle(new Particle(RandomUnitVector()));
@@ -544,6 +513,8 @@ module Electrons {
         particleCountEdit.onblur = OnEditParticleCount;
         particleCountEdit.setAttribute('min', MinParticleCount.toFixed());
         particleCountEdit.setAttribute('max', MaxParticleCount.toFixed());
+        document.getElementById('MinParticleCountSpan').textContent = MinParticleCount.toFixed();
+        document.getElementById('MaxParticleCountSpan').textContent = MaxParticleCount.toFixed();
 
         particleCountEdit.onkeypress = function(evt) {
             if (evt.keyCode === 13) {

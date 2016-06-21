@@ -6,3 +6,23 @@
 .EditLabel {
     font-size: 20pt;
 }
+
+.HideShow {
+    font-size: 18pt;
+    color: blue;
+}
+
+.TextBlock {
+    width: 800px;
+    font-size: 14pt;
+}
+
+.CenteredControl {
+    text-align: center;
+    width: 800px;
+}
+
+.ErrorText {
+    color: red;
+    font-size: 16pt;
+}
