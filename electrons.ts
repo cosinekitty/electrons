@@ -347,6 +347,8 @@ module Electrons {
             while (this.ParticleCount() > newCount) {
                 this.RemoveParticle();
             }
+
+            SaveOptions();
         }
 
         public Render(display:Display):void {
@@ -437,7 +439,7 @@ module Electrons {
     const ParallaxDistance:number = 15.0;
     const MinParticleCount:number = 1;
     const MaxParticleCount:number = 200;
-    const InitialParticleCount:number = 22;
+    var Options;
     var ySpinner:RotationMatrix = RotationMatrix.Unrotated.RotateY(RadiansFromDegrees(0.15));
     var xSpinner:RotationMatrix = RotationMatrix.Unrotated.RotateX(RadiansFromDegrees(0.0377));
     var initialTilt:RotationMatrix = RotationMatrix.Unrotated.RotateX(RadiansFromDegrees(-15.0));
@@ -484,7 +486,27 @@ module Electrons {
             MinParticleCount + ' to ' + MaxParticleCount;
     }
 
+    function LoadOptions() {
+        try {
+            Options = JSON.parse(window.localStorage.getItem('Electrons'));
+        } catch(e) {
+        }
+
+        if (!Options || typeof Options.ParticleCount !== 'number') {
+            Options = { ParticleCount: 22 };
+        }
+    }
+
+    function SaveOptions() {
+        try {
+            Options.ParticleCount = sim.ParticleCount();
+            window.localStorage.setItem('Electrons', JSON.stringify(Options));
+        } catch (e) {
+        }
+    }
+
     window.onload = function() {
+        LoadOptions();
         var explanationDiv = document.getElementById('ExplanationDiv');
         var hideShowExplanationButton = document.getElementById('HideShowExplanationButton');
         var hidePrompt = '&laquo;&nbsp;Hide';
@@ -504,12 +526,12 @@ module Electrons {
         canvas = <HTMLCanvasElement> document.getElementById('SimCanvas');
         //canvas.addEventListener('click', OnCanvasClick, false);
         sim = new Simulation();
-        for (let i:number = 0; i < InitialParticleCount; ++i) {
+        for (let i:number = 0; i < Options.ParticleCount; ++i) {
             sim.InsertParticle(new Particle(RandomUnitVector()));
         }
 
         var particleCountEdit = <HTMLInputElement> document.getElementById('ParticleCountEditBox');
-        particleCountEdit.value = InitialParticleCount.toFixed();
+        particleCountEdit.value = Options.ParticleCount.toFixed();
         particleCountEdit.onblur = OnEditParticleCount;
         particleCountEdit.setAttribute('min', MinParticleCount.toFixed());
         particleCountEdit.setAttribute('max', MaxParticleCount.toFixed());
