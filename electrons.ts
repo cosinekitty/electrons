@@ -283,10 +283,6 @@ module Electrons {
     class Simulation {
         private particleList:Particle[];
         private sphereCenter:Vector = new Vector(0, 0, 0);
-        private sphereRadius:number = 1.0;
-        private xAxis:Vector = new Vector(1, 0, 0);
-        private yAxis:Vector = new Vector(0, 1, 0);
-        private zAxis:Vector = new Vector(0, 0, 1);
 
         public constructor() {
             this.particleList = [];
@@ -355,7 +351,7 @@ module Electrons {
             let context:CanvasRenderingContext2D = canvas.getContext('2d');
             display.Erase(context);
 
-            let zbend:number = display.DrawSphere(context, this.sphereCenter, this.sphereRadius, '#eee');
+            let zbend:number = display.DrawSphere(context, this.sphereCenter, 1.0, '#eee');
             for (let p of this.particleList) {
                 display.DrawSphere(context, p.GetPosition(), 0.01, this.PointColor(p.GetPosition(), zbend));
             }
