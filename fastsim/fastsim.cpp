@@ -45,7 +45,16 @@ namespace Electrons
         output << t;
     }
     
-    std::ostream& operator<< (std::ostream& output, const Vector& v)
+    void JsonIndent(std::ostream& output, int indent)
+    {
+        int spaces = 4*indent;
+        for (int i=0; i < spaces; ++i)
+        {
+            output << " ";
+        }
+    }
+    
+    void JsonPrint(std::ostream& output, const Vector& v)
     {
         output << "{\"x\":"; 
         Print(output, v.x); 
@@ -54,21 +63,24 @@ namespace Electrons
         output << ", \"z\":";
         Print(output, v.z);
         output << "}";
-        return output;
     }
     
-    std::ostream& operator<< (std::ostream& output, const VectorList& list)
+    void JsonPrint(std::ostream& output, const VectorList& list, int indent)
     {
         using namespace std;
+        JsonIndent(output, indent);
         output << "[\n";
         bool first = true;
         for (const Vector& v : list) 
         {
-            cout << (first ? " " : ",") << "   " << v << "\n";
+            JsonIndent(output, indent);
+            output << (first ? "    " : ",   ");
+            JsonPrint(output, v);
+            output << "\n";
             first = false;
         }
+        JsonIndent(output, indent);
         output << "]\n";
-        return output;
     }
     
     double Random(std::ifstream& infile)
@@ -83,8 +95,7 @@ namespace Electrons
         // Divide by maximum possible value to get a number in the closed range [0, +1].
         double x = static_cast<double>(data) / static_cast<double>(UINT64_MAX);
         
-        // Convert to the closed range [-1, +1].
-        
+        // Convert to the closed range [-1, +1].        
         return 1.0 - (2.0 * x);
     }
 
@@ -130,7 +141,7 @@ int main(int argc, const char *argv[])
     using namespace Electrons;
     try 
     {
-        cout << RandomSpherePoints(10) << endl;        
+        JsonPrint(cout, RandomSpherePoints(10), 1);
         return 0;
     }
     catch (const char *message)
