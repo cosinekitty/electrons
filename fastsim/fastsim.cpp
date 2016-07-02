@@ -126,6 +126,7 @@ namespace Electrons
         ifstream infile("/dev/urandom", ios::in | ios::binary);
         if (!infile) throw "Could not open /dev/urandom to obtain random numbers.";
         VectorList list;
+        list.reserve(static_cast<VectorList::size_type>(numPoints));
         for (int i=0; i < numPoints; ++i)
         {
             list.push_back(RandomSpherePoint(infile));
