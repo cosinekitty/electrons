@@ -455,10 +455,23 @@ module Electrons {
     }
 
     function RandomUnitVector():Vector {
-        let x:number = 2*Math.random() - 1;
-        let y:number = 2*Math.random() - 1;
-        let z:number = 2*Math.random() - 1;
-        return new Vector(x, y, z).UnitVector();
+        // Algorithm for picking a random point on a sphere.
+        // Avoids any clustering of points.
+        // http://mathworld.wolfram.com/SpherePointPicking.html
+        // See equations (9), (10), (11) there.
+        while (true)
+        {
+            var a = 1 - 2*Math.random();
+            var b = 1 - 2*Math.random();
+            var mag = (a*a) + (b*b);
+            if (mag < 1.0)
+            {
+                var root = 2 * Math.sqrt(1 - mag);
+                var vector = new Vector(a*root, b*root, 1 - (2*mag));
+                //console.log(vector, vector.absSquared());
+                return vector;
+            }
+        }
     }
 
 /*
