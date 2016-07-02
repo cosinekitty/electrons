@@ -15,11 +15,13 @@
 
 namespace Electrons
 {
+    // Vector ---------------------------------------------------------------
+
     struct Vector
     {
-        const double  x;
-        const double  y;
-        const double  z;
+        double  x;
+        double  y;
+        double  z;
         
         Vector(): x(0), y(0), z(0) {}
         Vector(double _x, double _y, double _z): x(_x), y(_y), z(_z) {}
@@ -31,11 +33,27 @@ namespace Electrons
     };
     
     typedef std::vector<Vector> VectorList;
-
+    
     inline Vector operator + (const Vector& a, const Vector& b)
     {
         return Vector(a.x + b.x, a.y + b.y, a.z + b.z);
     }
+    
+    // Particle ---------------------------------------------------------------
+    
+    struct Particle
+    {
+        Vector position;
+        Vector force;
+        
+        Particle(): position(), force() {}
+        Particle(const Vector& _position): position(_position), force() {}
+        Particle(const Vector& _position, const Vector& _force): position(_position), force(_force) {}
+    };
+    
+    typedef std::vector<Particle> ParticleList;
+
+    // JSON output ------------------------------------------------------------
     
     void Print(std::ostream& output, double t)
     {
@@ -65,6 +83,15 @@ namespace Electrons
         output << "}";
     }
     
+    void JsonPrint(std::ostream& output, const Particle& p)
+    {
+        output << "{\"position\":";
+        JsonPrint(output, p.position);
+        output << ", \"force\":";
+        JsonPrint(output, p.force);
+        output << "}";
+    }
+    
     void JsonPrint(std::ostream& output, const VectorList& list, int indent)
     {
         using namespace std;
@@ -82,6 +109,8 @@ namespace Electrons
         JsonIndent(output, indent);
         output << "]\n";
     }
+    
+    // Random generators ------------------------------------------------------------
     
     double Random(std::ifstream& infile)
     {
@@ -103,8 +132,8 @@ namespace Electrons
     {    
         // Algorithm for picking a random point on a sphere.
         // Avoids any clustering of points.
+        // See equations (9), (10), (11) in:
         // http://mathworld.wolfram.com/SpherePointPicking.html
-        // See equations (9), (10), (11) there.
         while (true)
         {
             double a = Random(infile);
@@ -118,21 +147,47 @@ namespace Electrons
         }
     }
 
-    VectorList RandomSpherePoints(int numPoints)
+    // Simulation ---------------------------------------------------------------
+
+    class Simulation
     {
-        using namespace std;
-        
-        if (numPoints < 0) throw "Number of points not allowed to be negative.";        
-        ifstream infile("/dev/urandom", ios::in | ios::binary);
-        if (!infile) throw "Could not open /dev/urandom to obtain random numbers.";
-        VectorList list;
-        list.reserve(static_cast<VectorList::size_type>(numPoints));
-        for (int i=0; i < numPoints; ++i)
+    private:
+        ParticleList particles;
+    
+    public:
+        Simulation(int numPoints)       // create an initial random state
         {
-            list.push_back(RandomSpherePoint(infile));
+            using namespace std;
+            
+            if (numPoints < 0) throw "Number of points not allowed to be negative.";        
+            ifstream infile("/dev/urandom", ios::in | ios::binary);
+            if (!infile) throw "Could not open /dev/urandom to obtain random numbers.";
+            particles.reserve(static_cast<ParticleList::size_type>(numPoints));
+            for (int i=0; i < numPoints; ++i)
+            {
+                particles.push_back(Particle(RandomSpherePoint(infile)));
+            }
         }
-        return list;
-    }
+        
+        void JsonPrint(std::ostream& output, int indent) const
+        {
+            using namespace std;
+            
+            JsonIndent(output, indent);
+            output << "{\"particles\": [\n";
+            bool first = true;
+            for (const Particle& p : particles) 
+            {
+                JsonIndent(output, indent);
+                output << (first ? "    " : ",   ");
+                Electrons::JsonPrint(output, p);
+                output << "\n";
+                first = false;
+            }
+            JsonIndent(output, indent);
+            output << "]}\n";
+        }
+    };    
 }
 
 
@@ -142,7 +197,8 @@ int main(int argc, const char *argv[])
     using namespace Electrons;
     try 
     {
-        JsonPrint(cout, RandomSpherePoints(10), 1);
+        Simulation sim(10);
+        sim.JsonPrint(cout, 1);
         return 0;
     }
     catch (const char *message)
