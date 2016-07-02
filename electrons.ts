@@ -459,17 +459,13 @@ module Electrons {
         // Avoids any clustering of points.
         // http://mathworld.wolfram.com/SpherePointPicking.html
         // See equations (9), (10), (11) there.
-        while (true)
-        {
+        while (true) {
             var a = 1 - 2*Math.random();
             var b = 1 - 2*Math.random();
             var mag = (a*a) + (b*b);
-            if (mag < 1.0)
-            {
+            if (mag < 1) {
                 var root = 2 * Math.sqrt(1 - mag);
-                var vector = new Vector(a*root, b*root, 1 - (2*mag));
-                //console.log(vector, vector.absSquared());
-                return vector;
+                return new Vector(a*root, b*root, 1 - (2*mag));
             }
         }
     }
