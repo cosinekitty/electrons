@@ -453,7 +453,7 @@ double ScanTimeIncrement(const char *text)
     return dt;
 }
 
-void TryFixedIncrement(int n, double dt)
+bool TryFixedIncrement(int n, double dt)
 {
     using namespace std;
     using namespace Electrons;
@@ -473,21 +473,21 @@ void TryFixedIncrement(int n, double dt)
         else
         {
             cout << "trial=" << trial << ", *** NO CONVERGENCE ***" << endl;
+            return false;
         }
     }
     
-    if (sd.CanCalculateVariance())
-    {
-        cout << endl;
-        cout << setprecision(2);
-        cout << 
-            "frames: count=" << sd.NumData() <<
-            ", mean=" << sd.Mean() << 
-            ", stdev=" << sd.Deviation() << 
-            ", min=" << sd.Minimum() <<
-            ", max=" << sd.Maximum() <<
-            endl;
-    }
+    cout << endl;
+    cout << setprecision(2);
+    cout << 
+        "frames: count=" << sd.NumData() <<
+        ", mean=" << sd.Mean() << 
+        ", stdev=" << sd.Deviation() << 
+        ", min=" << static_cast<int>(sd.Minimum()) <<
+        ", max=" << static_cast<int>(sd.Maximum()) <<
+        endl;
+    
+    return true;
 }
 
 //======================================================================================
@@ -505,18 +505,21 @@ int main(int argc, const char *argv[])
             {
                 int n = ScanNumParticles(argv[2]);
                 double dt = ScanTimeIncrement(argv[3]);
-                TryFixedIncrement(n, dt);
-                return 0;
+                if (TryFixedIncrement(n, dt))
+                {
+                    return 0;
+                }
+                return 1;
             }
         }
     
         PrintUsage();
-        return 1;
+        return 2;
     }
     catch (const char *message)
     {
         cerr << "EXCEPTION: " << message << endl;
-        return 1;
+        return 3;
     }
 }
 
