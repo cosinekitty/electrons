@@ -324,7 +324,7 @@ module Electrons {
             }
 
             if (maxForceMag > 0) {
-                // We want to move each electron a small distance compared width
+                // We want to move each electron a small distance compared with
                 // the average distance between particles.
                 // As the number of particles on the sphere increases, the
                 // average distance between them goes down as an inverse square root.
