@@ -329,6 +329,95 @@ namespace Electrons
 
 //======================================================================================
 
+class StandardDeviationCalculator
+{
+    // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm    
+private:
+    int n;
+    double mean;
+    double sum;
+    double max;
+    double min;
+
+public:
+    StandardDeviationCalculator(): n(0), mean(0.0), sum(0.0), max(0.0), min(0.0) {}
+    
+    int NumData() const
+    {
+        return n;
+    }
+        
+    void Append(double x)
+    {
+        ++n;
+        if (n == 1)
+        {
+            max = min = x;
+        }
+        else
+        {
+            if (x < min) min = x;
+            if (x > max) max = x;
+        }
+        double delta = x - mean;
+        mean += delta/n;
+        sum += delta*(x - mean);
+    }    
+    
+    bool HasData() const
+    {
+        return n >= 1;
+    }
+    
+    bool CanCalculateVariance() const
+    {
+        return n >= 2;
+    }
+    
+    double Mean() const
+    {
+        if (HasData())
+        {
+            return mean;
+        }
+        throw "No data to calculate mean";
+    }
+    
+    double Variance() const
+    {
+        if (CanCalculateVariance())
+        {
+            return sum / (n - 1);
+        }
+        throw "Not enough data to calculate variance";
+    }
+    
+    double Deviation() const
+    {
+        return sqrt(Variance());
+    }
+    
+    double Minimum() const
+    {
+        if (HasData())
+        {
+            return min;
+        }
+        throw "No data to calculate minimum";
+    }
+    
+    double Maximum() const
+    {
+        if (HasData())
+        {
+            return max;
+        }
+        throw "No data to calculate maximum";
+    }
+};
+
+//======================================================================================
+
 const int MaxParticles = 1000;
     
 void PrintUsage()
@@ -372,17 +461,32 @@ void TryFixedIncrement(int n, double dt)
     const int NumTrials = 40;
     const int MaxFrames = 1000000;
     cout << setprecision(10) << fixed;
+    StandardDeviationCalculator sd;
     for (int trial=0; trial < NumTrials; ++trial)
     {
         Simulation sim(n);
         if (sim.Converge(dt, MaxFrames))
         {
             cout << "trial=" << trial << ", frames=" << sim.FrameNumber() << endl;
+            sd.Append(static_cast<double>(sim.FrameNumber()));
         }
         else
         {
             cout << "trial=" << trial << ", *** NO CONVERGENCE ***" << endl;
         }
+    }
+    
+    if (sd.CanCalculateVariance())
+    {
+        cout << endl;
+        cout << setprecision(2);
+        cout << 
+            "frames: count=" << sd.NumData() <<
+            ", mean=" << sd.Mean() << 
+            ", stdev=" << sd.Deviation() << 
+            ", min=" << sd.Minimum() <<
+            ", max=" << sd.Maximum() <<
+            endl;
     }
 }
 
@@ -397,7 +501,7 @@ int main(int argc, const char *argv[])
         if (argc > 1)
         {
             const char *verb = argv[1];
-            if (0 == strcmp(verb, "fixed") && (argc == 4))
+            if (!strcmp(verb, "fixed") && (argc == 4))
             {
                 int n = ScanNumParticles(argv[2]);
                 double dt = ScanTimeIncrement(argv[3]);
