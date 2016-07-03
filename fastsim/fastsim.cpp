@@ -26,9 +26,52 @@ namespace Electrons
         Vector(): x(0), y(0), z(0) {}
         Vector(double _x, double _y, double _z): x(_x), y(_y), z(_z) {}
         
+        void Reset()
+        {
+            x = 0;
+            y = 0;
+            z = 0;
+        }
+        
         double MagSquared() const 
         {
             return (x*x) + (y*y) + (z*z);
+        }
+        
+        double Mag() const
+        {
+            return sqrt(MagSquared());
+        }
+        
+        Vector UnitVector() const
+        {
+            double r = Mag();
+            if (r < 1.0e-9)
+            {
+                throw "Cannot find unit vector for near-zero magnitude vector.";
+            }
+            return Vector(x/r, y/r, z/r);
+        }
+        
+        Vector& operator += (const Vector& other)
+        {
+            x += other.x;
+            y += other.y;
+            z += other.z;
+            return *this;
+        }
+        
+        Vector& operator -= (const Vector& other)
+        {
+            x -= other.x;
+            y -= other.y;
+            z -= other.z;
+            return *this;
+        }
+        
+        static double Dot(const Vector& a, const Vector& b)
+        {
+            return (a.x*b.x) + (a.y*b.y) + (a.z*b.z);
         }
     };
     
@@ -37,6 +80,16 @@ namespace Electrons
     inline Vector operator + (const Vector& a, const Vector& b)
     {
         return Vector(a.x + b.x, a.y + b.y, a.z + b.z);
+    }
+    
+    inline Vector operator - (const Vector& a, const Vector& b)
+    {
+        return Vector(a.x - b.x, a.y - b.y, a.z - b.z);
+    }
+    
+    inline Vector operator * (double s, const Vector& v)
+    {
+        return Vector(s*v.x, s*v.y, s*v.z);
     }
     
     // Particle ---------------------------------------------------------------
@@ -153,9 +206,11 @@ namespace Electrons
     {
     private:
         ParticleList particles;
+        int frame;        
     
     public:
         Simulation(int numPoints)       // create an initial random state
+            : frame(0)
         {
             using namespace std;
             
@@ -174,7 +229,7 @@ namespace Electrons
             using namespace std;
             
             JsonIndent(output, indent);
-            output << "{\"particles\": [\n";
+            output << "{\"frame\": " << frame << ", \"particles\": [\n";
             bool first = true;
             for (const Particle& p : particles) 
             {
@@ -187,6 +242,60 @@ namespace Electrons
             JsonIndent(output, indent);
             output << "]}\n";
         }
+        
+        double Update(double dt)
+        {
+            ++frame;
+        
+            // Reset each particle's force to a zero vector.
+            for (Particle& p : particles)
+            {
+                p.force.Reset();
+            }
+            
+            // Compute force between each unique pair of particles.
+            const ParticleList::size_type numParticles = particles.size();
+            for (ParticleList::size_type i=0; i < numParticles-1; ++i)
+            {
+                for (ParticleList::size_type j=i+1; j < numParticles; ++j)
+                {
+                    AddForces(particles[i], particles[j]);
+                }
+            }
+            
+            // The particles can only move along the surface of the sphere,
+            // so eliminate the radial component of all forces, 
+            // leaving tangential forces.
+            double maxForceMag = 0;
+            for (Particle& p : particles)
+            {
+                // Calculate radial component using dot product and subtract
+                // to get tangential component.
+                p.force -= Vector::Dot(p.force, p.position) * p.position;
+                double forceMag = p.force.Mag();
+                if (forceMag > maxForceMag)
+                {
+                    maxForceMag = forceMag;
+                }
+                p.position = ((dt * p.force) + p.position).UnitVector();
+            }
+            
+            return maxForceMag;
+        }
+        
+    private:
+        void AddForces(Particle& a, Particle& b)
+        {
+            // Force of electrically charged particles:
+            // F = k*q1*q2/r^2.
+            // We simplify the problem as:  F = 1/r^2.
+            // Force is along the direction of the line passing through both.
+            Vector dp = a.position - b.position;
+            double forcemag = 1.0 / dp.MagSquared();
+            Vector force = forcemag * dp.UnitVector();
+            a.force += force;
+            b.force -= force;
+        }
     };    
 }
 
@@ -197,8 +306,16 @@ int main(int argc, const char *argv[])
     using namespace Electrons;
     try 
     {
-        Simulation sim(10);
-        sim.JsonPrint(cout, 1);
+        Simulation sim(4);
+        //sim.JsonPrint(cout, 1);
+        double forcemag = 1;
+        double dt = 0.01;
+        for (int i=0; forcemag > 1.0e-10; ++i)
+        {
+            forcemag = sim.Update(dt);
+            cout << "i=" << i << ", forcemag=" << forcemag << endl;
+        }
+        //sim.JsonPrint(cout, 1);
         return 0;
     }
     catch (const char *message)
