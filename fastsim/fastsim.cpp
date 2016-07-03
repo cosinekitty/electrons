@@ -293,16 +293,30 @@ namespace Electrons
             return maxForceMag;
         }
         
-        void Converge()
+        double Converge()
         {
             const double forceTolerance = 1.0e-10;
-            double forcemag = 1;
-            double dt = 0.01;
-            for (int i=0; forcemag > forceTolerance; ++i)
+            double prevForce = 0;
+            double force = 1;
+            double dt = 1;
+            for (int i=0; force > forceTolerance; ++i)
             {
-                forcemag = Update(dt);
-                std::cout << "i=" << i << ", forcemag=" << forcemag << ", dt=" << dt << std::endl;
+                force = Update(dt);                
+                //std::cout << "i=" << i << ", F=" << force << ", dt=" << dt << std::endl;
+                if (i > 10)
+                {
+                    if (force > 1.5 * prevForce)
+                    {
+                        dt *= 0.99;
+                    }
+                    else if (force < 0.1 * prevForce)
+                    {
+                        dt *= 1.001;
+                    }
+                }
+                prevForce = force;
             }
+            return dt;
         }
         
     private:
@@ -328,10 +342,30 @@ int main(int argc, const char *argv[])
     using namespace Electrons;
     try 
     {
-        Simulation sim(4);
-        //sim.JsonPrint(cout, 1);
-        sim.Converge();
-        //sim.JsonPrint(cout, 1);
+        if (argc != 2)
+        {
+            cerr << "USAGE: fastsim NumParticles" << endl;
+            return 1;
+        }
+        
+        int n = atoi(argv[1]);
+        if (n < 1)
+        {
+            cerr << "ERROR: Must have at least 1 particle." << endl;
+            return 1;
+        }
+    
+        const int NumTrials = 40;
+        cout << setprecision(10) << fixed;
+        double dtSum = 0;
+        for (int trial=0; trial < NumTrials; ++trial)
+        {
+            Simulation sim(n);
+            double dt = sim.Converge();
+            dtSum += dt;
+            cout << "trial=" << trial << ", frames=" << sim.FrameNumber() << ", dt=" << dt << endl;
+        }
+        cout << endl << "average dt = " << (dtSum / NumTrials) << endl;
         return 0;
     }
     catch (const char *message)
