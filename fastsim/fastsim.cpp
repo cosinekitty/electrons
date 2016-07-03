@@ -453,12 +453,14 @@ double ScanTimeIncrement(const char *text)
     return dt;
 }
 
-bool TryFixedIncrement(int n, double dt)
+bool TryFixedIncrement(int n, double dt, int &maxframes)
 {
     using namespace std;
     using namespace Electrons;
     
-    const int NumTrials = 40;
+    maxframes = -1;
+    
+    const int NumTrials = 100;
     const int MaxFrames = 1000000;
     cout << setprecision(10) << fixed;
     StandardDeviationCalculator sd;
@@ -467,7 +469,7 @@ bool TryFixedIncrement(int n, double dt)
         Simulation sim(n);
         if (sim.Converge(dt, MaxFrames))
         {
-            cout << "trial=" << trial << ", frames=" << sim.FrameNumber() << endl;
+            //cout << "trial=" << trial << ", frames=" << sim.FrameNumber() << endl;
             sd.Append(static_cast<double>(sim.FrameNumber()));
         }
         else
@@ -477,15 +479,17 @@ bool TryFixedIncrement(int n, double dt)
         }
     }
     
-    cout << endl;
-    cout << setprecision(2);
+    maxframes = static_cast<int>(sd.Maximum());
+    
+    //cout << endl;
     cout << 
         "frames: count=" << sd.NumData() <<
+        ", dt=" << setprecision(6) << dt << setprecision(2) <<
         ", mean=" << sd.Mean() << 
         ", stdev=" << sd.Deviation() << 
         ", min=" << static_cast<int>(sd.Minimum()) <<
-        ", max=" << static_cast<int>(sd.Maximum()) <<
-        endl;
+        ", max=" << maxframes <<
+        endl;        
     
     return true;
 }
@@ -503,13 +507,44 @@ int main(int argc, const char *argv[])
             const char *verb = argv[1];
             if (!strcmp(verb, "fixed") && (argc == 4))
             {
+                int maxframes = 0;
                 int n = ScanNumParticles(argv[2]);
                 double dt = ScanTimeIncrement(argv[3]);
-                if (TryFixedIncrement(n, dt))
+                if (TryFixedIncrement(n, dt, maxframes))
                 {
                     return 0;
                 }
                 return 1;
+            }
+            
+            if (!strcmp(verb, "range") && (argc == 6))
+            {
+                int n = ScanNumParticles(argv[2]);
+                double dt1 = ScanTimeIncrement(argv[3]);
+                double dt2 = ScanTimeIncrement(argv[4]);
+                double inc = ScanTimeIncrement(argv[5]);
+                int bestframes = 0;
+                double bestdt = 0;
+                for (double dt = dt1; dt <= dt2; dt += inc)
+                {
+                    int maxframes = 0;
+                    if (TryFixedIncrement(n, dt, maxframes))
+                    {
+                        if (bestframes==0 || maxframes<bestframes)
+                        {
+                            cout << "BEST: dt=" << setprecision(6) << dt << ", maxframes=" << maxframes << endl;
+                            bestframes = maxframes;
+                            bestdt = dt;
+                        }
+                    }
+                }
+                
+                if (bestframes > 0)
+                {
+                    cout << endl;
+                    cout << "Final answer: dt=" << setprecision(6) << bestdt << ", frames=" << bestframes << endl;
+                }
+                return 0;
             }
         }
     
