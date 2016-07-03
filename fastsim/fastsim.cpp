@@ -12,6 +12,7 @@
 #include <vector>
 #include <cstdint>
 #include <cmath>
+#include <cstring>
 
 namespace Electrons
 {
@@ -293,30 +294,21 @@ namespace Electrons
             return maxForceMag;
         }
         
-        double Converge()
+        bool Converge(double dt, int maxFrames)
         {
             const double forceTolerance = 1.0e-10;
-            double prevForce = 0;
             double force = 1;
-            double dt = 1;
-            for (int i=0; force > forceTolerance; ++i)
+            while (force > forceTolerance)
             {
                 force = Update(dt);                
                 //std::cout << "i=" << i << ", F=" << force << ", dt=" << dt << std::endl;
-                if (i > 10)
+                if (frame > maxFrames)
                 {
-                    if (force > 1.5 * prevForce)
-                    {
-                        dt *= 0.99;
-                    }
-                    else if (force < 0.1 * prevForce)
-                    {
-                        dt *= 1.001;
-                    }
+                    // Simulation did not converge within specified number of frames.
+                    return false;
                 }
-                prevForce = force;
             }
-            return dt;
+            return true;
         }
         
     private:
@@ -332,9 +324,69 @@ namespace Electrons
             a.force += force;
             b.force -= force;
         }
-    };    
+    };
 }
 
+//======================================================================================
+
+const int MaxParticles = 1000;
+    
+void PrintUsage()
+{
+    std::cout <<
+        "\n"
+        "USAGE:\n"
+        "\n"
+        "fastsim fixed N dt\n"
+        "    Run multiple simulations on N particles with time increment dt.\n"
+        "\n";
+}
+
+
+int ScanNumParticles(const char *text)
+{
+    int n = atoi(text);
+    if (n<1 || n>MaxParticles)
+    {
+        throw "Invalid number of particles.";
+    }
+    return n;
+}
+
+
+double ScanTimeIncrement(const char *text)
+{
+    double dt = atof(text);
+    if (dt <= 0.0)
+    {
+        throw "Time increment must be a positive real number.";
+    }
+    return dt;
+}
+
+void TryFixedIncrement(int n, double dt)
+{
+    using namespace std;
+    using namespace Electrons;
+    
+    const int NumTrials = 40;
+    const int MaxFrames = 1000000;
+    cout << setprecision(10) << fixed;
+    for (int trial=0; trial < NumTrials; ++trial)
+    {
+        Simulation sim(n);
+        if (sim.Converge(dt, MaxFrames))
+        {
+            cout << "trial=" << trial << ", frames=" << sim.FrameNumber() << endl;
+        }
+        else
+        {
+            cout << "trial=" << trial << ", *** NO CONVERGENCE ***" << endl;
+        }
+    }
+}
+
+//======================================================================================
 
 int main(int argc, const char *argv[])
 {
@@ -342,31 +394,20 @@ int main(int argc, const char *argv[])
     using namespace Electrons;
     try 
     {
-        if (argc != 2)
+        if (argc > 1)
         {
-            cerr << "USAGE: fastsim NumParticles" << endl;
-            return 1;
-        }
-        
-        int n = atoi(argv[1]);
-        if (n < 1)
-        {
-            cerr << "ERROR: Must have at least 1 particle." << endl;
-            return 1;
+            const char *verb = argv[1];
+            if (0 == strcmp(verb, "fixed") && (argc == 4))
+            {
+                int n = ScanNumParticles(argv[2]);
+                double dt = ScanTimeIncrement(argv[3]);
+                TryFixedIncrement(n, dt);
+                return 0;
+            }
         }
     
-        const int NumTrials = 40;
-        cout << setprecision(10) << fixed;
-        double dtSum = 0;
-        for (int trial=0; trial < NumTrials; ++trial)
-        {
-            Simulation sim(n);
-            double dt = sim.Converge();
-            dtSum += dt;
-            cout << "trial=" << trial << ", frames=" << sim.FrameNumber() << ", dt=" << dt << endl;
-        }
-        cout << endl << "average dt = " << (dtSum / NumTrials) << endl;
-        return 0;
+        PrintUsage();
+        return 1;
     }
     catch (const char *message)
     {
