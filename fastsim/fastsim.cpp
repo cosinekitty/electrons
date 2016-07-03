@@ -224,6 +224,16 @@ namespace Electrons
             }
         }
         
+        int ParticleCount() const
+        {
+            return static_cast<int>(particles.size());
+        }
+        
+        int FrameNumber() const
+        {
+            return frame;
+        }
+        
         void JsonPrint(std::ostream& output, int indent) const
         {
             using namespace std;
@@ -283,8 +293,20 @@ namespace Electrons
             return maxForceMag;
         }
         
+        void Converge()
+        {
+            const double forceTolerance = 1.0e-10;
+            double forcemag = 1;
+            double dt = 0.01;
+            for (int i=0; forcemag > forceTolerance; ++i)
+            {
+                forcemag = Update(dt);
+                std::cout << "i=" << i << ", forcemag=" << forcemag << ", dt=" << dt << std::endl;
+            }
+        }
+        
     private:
-        void AddForces(Particle& a, Particle& b)
+        void static AddForces(Particle& a, Particle& b)
         {
             // Force of electrically charged particles:
             // F = k*q1*q2/r^2.
@@ -308,13 +330,7 @@ int main(int argc, const char *argv[])
     {
         Simulation sim(4);
         //sim.JsonPrint(cout, 1);
-        double forcemag = 1;
-        double dt = 0.01;
-        for (int i=0; forcemag > 1.0e-10; ++i)
-        {
-            forcemag = sim.Update(dt);
-            cout << "i=" << i << ", forcemag=" << forcemag << endl;
-        }
+        sim.Converge();
         //sim.JsonPrint(cout, 1);
         return 0;
     }
