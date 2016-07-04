@@ -208,11 +208,13 @@ namespace Electrons
     {
     private:
         ParticleList particles;
-        int frame;        
+        int frame;
+        int loop;
     
     public:
         Simulation(int numPoints)       // create an initial random state
             : frame(0)
+            , loop(0)
         {
             using namespace std;
             
@@ -231,9 +233,14 @@ namespace Electrons
             return static_cast<int>(particles.size());
         }
         
-        int FrameNumber() const
+        int FrameCount() const
         {
             return frame;
+        }
+        
+        int LoopCount() const
+        {
+            return loop;
         }
         
         void JsonPrint(std::ostream& output, int indent) const
@@ -255,9 +262,12 @@ namespace Electrons
             output << "]}\n";
         }
         
-        bool AutoConverge()
+        bool AutoConverge(double shrink)
         {
             using namespace std;
+            
+            if (shrink<=0.0 || shrink>=1.0)
+                throw "Shrink factor must be between 0 and 1.";
         
             // Theory: the simulation converges if total potential energy always decreases.
             
@@ -283,6 +293,7 @@ namespace Electrons
                 double nextenergy;
                 while (true)    // dt adjustment loop: adjust dt as needed for potential energy to decrease
                 {
+                    ++loop;
                     UpdatePositions(particles, nextlist, dt);
                     CalcTangentialForces(nextlist);
                     nextenergy = PotentialEnergy(nextlist);
@@ -303,7 +314,7 @@ namespace Electrons
                     if (nextenergy < energy) 
                         break;
                     
-                    dt *= 0.99;
+                    dt *= shrink;
                     
 #if 0                   
                     cout << "Decreased dt=" << setprecision(6) << fixed << dt << setprecision(12) <<
@@ -418,8 +429,10 @@ void PrintUsage()
         "\n"
         "USAGE:\n"
         "\n"
-        "fastsim auto N\n"
+        "fastsim auto N shrink\n"
         "    Simulate N particles using automatic convergence algorithm.\n"
+        "    The 'shrink' value must be between 0 and 1, specifying how\n"
+        "    much to reduce dt each time potential energy increases.\n"
         "\n";
 }
 
@@ -445,13 +458,15 @@ int main(int argc, const char *argv[])
         {
             const char *verb = argv[1];
             
-            if (!strcmp(verb, "auto") && (argc == 3))
+            if (!strcmp(verb, "auto") && (argc == 4))
             {
                 int n = ScanNumParticles(argv[2]);
+                double shrink = atof(argv[3]);
                 Simulation sim(n);
-                if (sim.AutoConverge())
+                if (sim.AutoConverge(shrink))
                 {
-                    sim.JsonPrint(cout, 0);
+                    //sim.JsonPrint(cout, 0);
+                    cout << "Converged after " << sim.FrameCount() << " frames, " << sim.LoopCount() << " loops." << endl;
                     return 0;
                 }
             }            
