@@ -255,32 +255,11 @@ namespace Electrons
             output << "]}\n";
         }
         
-        bool Converge(double dt, int maxFrames)
-        {
-            const double forceTolerance = 1.0e-10;
-            double force = 1;
-            while (force > forceTolerance)
-            {
-                ++frame;
-                force = CalcTangentialForces(particles);
-                UpdatePositions(particles, particles, dt);
-                
-                //std::cout << "i=" << i << ", F=" << force << ", dt=" << dt << std::endl;
-                if (frame > maxFrames)
-                {
-                    // Simulation did not converge within specified number of frames.
-                    return false;
-                }
-            }
-            return true;
-        }
-        
         bool AutoConverge()
         {
             using namespace std;
         
-            // Theory #1: the simulation converges if total potential energy always decreases.
-            // Theory #2: the simulation converges if max (particle tangential force) always decreases.
+            // Theory: the simulation converges if total potential energy always decreases.
             
             // Create an auxiliary particle list to hold candidate next frames.
             const ParticleList::size_type n = particles.size();
@@ -291,46 +270,42 @@ namespace Electrons
                 nextlist.push_back(Particle());
             }
             
-            // Start out with a very large dt. Make it smaller until max force decreases.
+            // Start out with a very large dt. Make it smaller until potential energy decreases.
             double dt = 4.0;    // known to optimally converge the n=2 case
             
-            const double energyTolerance = 1.0e-10;
-            const int MaxFrames = 1000000;
-            
+            const double DeltaEnergyTolerance = 1.0e-10;            
             CalcTangentialForces(particles);
             double energy = PotentialEnergy(particles);
-            while (true)
+            while (true)    // frame loop: each iteration updates the particles' positions
             {
-                cout << "frame=" << frame << setprecision(12) << ", energy=" << energy << endl;
+                ++frame;
+                //cout << "frame=" << frame << setprecision(12) << ", energy=" << energy << endl;
                 double nextenergy;
-                while (true)
+                while (true)    // dt adjustment loop: adjust dt as needed for potential energy to decrease
                 {
                     UpdatePositions(particles, nextlist, dt);
                     CalcTangentialForces(nextlist);
                     nextenergy = PotentialEnergy(nextlist);
                     
-                    if (fabs(nextenergy - energy) < energyTolerance)
-                        return true;
+                    if (fabs(nextenergy - energy) < DeltaEnergyTolerance)
+                        return true;    // the simulation has settled down enough!
                         
                     if (nextenergy < energy) 
                         break;
                     
                     dt *= 0.99;
+                    
+#if 0                   
                     cout << "Decreased dt=" << setprecision(6) << fixed << dt << setprecision(12) <<
                         ", energy=" << energy << 
                         ", nextenergy=" << nextenergy << 
                         ", dE=" << scientific << (nextenergy - energy) <<
                         endl;
+#endif
                         
                     if (dt < 1.0e-20)
-                    {
-                        cout << "*** dt underflowed ***" << endl;
-                        return false;
-                    }
+                        return false;   // dt has decreased so much that we are probably stuck!
                 }
-                
-                if (++frame > MaxFrames)
-                    return false;   // Simulation did not converge within specified number of frames.
                     
                 swap(particles, nextlist);
                 energy = nextenergy;
@@ -365,15 +340,6 @@ namespace Electrons
                 // Calculate radial component using dot product and subtract
                 // to get tangential component.
                 p.force -= Vector::Dot(p.force, p.position) * p.position;
-                
-#if 0
-                // Sanity check that force is perpendicular to position.
-                // The position is a radial vector, and force must be tangential.
-                double error = Vector::Dot(p.force, p.position);
-                std::cout << "dot(force,position) = " << std::scientific << error << std::fixed << std::endl;
-                if (fabs(error) > 1.0e-13) throw "non-perpendicular force, position";
-#endif
-                
                 double forceMag = p.force.Mag();
                 if (forceMag > maxForceMag)
                 {
@@ -434,95 +400,6 @@ namespace Electrons
 
 //======================================================================================
 
-class StandardDeviationCalculator
-{
-    // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm    
-private:
-    int n;
-    double mean;
-    double sum;
-    double max;
-    double min;
-
-public:
-    StandardDeviationCalculator(): n(0), mean(0.0), sum(0.0), max(0.0), min(0.0) {}
-    
-    int NumData() const
-    {
-        return n;
-    }
-        
-    void Append(double x)
-    {
-        ++n;
-        if (n == 1)
-        {
-            max = min = x;
-        }
-        else
-        {
-            if (x < min) min = x;
-            if (x > max) max = x;
-        }
-        double delta = x - mean;
-        mean += delta/n;
-        sum += delta*(x - mean);
-    }    
-    
-    bool HasData() const
-    {
-        return n >= 1;
-    }
-    
-    bool CanCalculateVariance() const
-    {
-        return n >= 2;
-    }
-    
-    double Mean() const
-    {
-        if (HasData())
-        {
-            return mean;
-        }
-        throw "No data to calculate mean";
-    }
-    
-    double Variance() const
-    {
-        if (CanCalculateVariance())
-        {
-            return sum / (n - 1);
-        }
-        throw "Not enough data to calculate variance";
-    }
-    
-    double Deviation() const
-    {
-        return sqrt(Variance());
-    }
-    
-    double Minimum() const
-    {
-        if (HasData())
-        {
-            return min;
-        }
-        throw "No data to calculate minimum";
-    }
-    
-    double Maximum() const
-    {
-        if (HasData())
-        {
-            return max;
-        }
-        throw "No data to calculate maximum";
-    }
-};
-
-//======================================================================================
-
 const int MaxParticles = 1000;
     
 void PrintUsage()
@@ -531,11 +408,10 @@ void PrintUsage()
         "\n"
         "USAGE:\n"
         "\n"
-        "fastsim fixed N dt\n"
-        "    Run multiple simulations on N particles with time increment dt.\n"
+        "fastsim auto N\n"
+        "    Simulate N particles using automatic convergence algorithm.\n"
         "\n";
 }
-
 
 int ScanNumParticles(const char *text)
 {
@@ -545,73 +421,6 @@ int ScanNumParticles(const char *text)
         throw "Invalid number of particles.";
     }
     return n;
-}
-
-
-double ScanTimeIncrement(const char *text)
-{
-    double dt = atof(text);
-    if (dt <= 0.0)
-    {
-        throw "Time increment must be a positive real number.";
-    }
-    return dt;
-}
-
-bool TryFixedIncrement(int n, double dt, int &maxframes)
-{
-    using namespace std;
-    using namespace Electrons;
-    
-    maxframes = -1;
-    
-    const int NumTrials = 100;
-    const int MaxFrames = 1000000;
-    cout << setprecision(10) << fixed;
-    StandardDeviationCalculator sd;
-    for (int trial=0; trial < NumTrials; ++trial)
-    {
-        Simulation sim(n);
-        if (sim.Converge(dt, MaxFrames))
-        {
-            //cout << "trial=" << trial << ", frames=" << sim.FrameNumber() << endl;
-            sd.Append(static_cast<double>(sim.FrameNumber()));
-        }
-        else
-        {
-            cout << "trial=" << trial << ", *** NO CONVERGENCE ***" << endl;
-            return false;
-        }
-    }
-    
-    maxframes = static_cast<int>(sd.Maximum());
-    
-    //cout << endl;
-    cout << 
-        "frames: count=" << sd.NumData() <<
-        ", dt=" << setprecision(6) << dt << setprecision(2) <<
-        ", mean=" << sd.Mean() << 
-        ", stdev=" << sd.Deviation() << 
-        ", min=" << static_cast<int>(sd.Minimum()) <<
-        ", max=" << maxframes <<
-        endl;        
-    
-    return true;
-}
-
-//======================================================================================
-
-int AutoConverge(int n)
-{
-    using namespace std;
-    using namespace Electrons;
-    
-    Simulation sim(n);
-    if (sim.AutoConverge())
-    {
-        return 0;
-    }
-    return 1;
 }
 
 //======================================================================================
@@ -629,50 +438,13 @@ int main(int argc, const char *argv[])
             if (!strcmp(verb, "auto") && (argc == 3))
             {
                 int n = ScanNumParticles(argv[2]);
-                return AutoConverge(n);
-            }
-            
-            if (!strcmp(verb, "fixed") && (argc == 4))
-            {
-                int maxframes = 0;
-                int n = ScanNumParticles(argv[2]);
-                double dt = ScanTimeIncrement(argv[3]);
-                if (TryFixedIncrement(n, dt, maxframes))
+                Simulation sim(n);
+                if (sim.AutoConverge())
                 {
+                    sim.JsonPrint(cout, 0);
                     return 0;
                 }
-                return 1;
-            }
-            
-            if (!strcmp(verb, "range") && (argc == 6))
-            {
-                int n = ScanNumParticles(argv[2]);
-                double dt1 = ScanTimeIncrement(argv[3]);
-                double dt2 = ScanTimeIncrement(argv[4]);
-                double inc = ScanTimeIncrement(argv[5]);
-                int bestframes = 0;
-                double bestdt = 0;
-                for (double dt = dt1; dt <= dt2; dt += inc)
-                {
-                    int maxframes = 0;
-                    if (TryFixedIncrement(n, dt, maxframes))
-                    {
-                        if (bestframes==0 || maxframes<bestframes)
-                        {
-                            cout << "BEST: dt=" << setprecision(6) << dt << ", maxframes=" << maxframes << endl;
-                            bestframes = maxframes;
-                            bestdt = dt;
-                        }
-                    }
-                }
-                
-                if (bestframes > 0)
-                {
-                    cout << endl;
-                    cout << "Final answer: dt=" << setprecision(6) << bestdt << ", frames=" << bestframes << endl;
-                }
-                return 0;
-            }
+            }            
         }
     
         PrintUsage();
