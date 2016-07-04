@@ -262,8 +262,8 @@ namespace Electrons
             while (force > forceTolerance)
             {
                 ++frame;
-                CalcTangentialForces(particles);
-                force = UpdatePositions(particles, particles, dt);
+                force = CalcTangentialForces(particles);
+                UpdatePositions(particles, particles, dt);
                 
                 //std::cout << "i=" << i << ", F=" << force << ", dt=" << dt << std::endl;
                 if (frame > maxFrames)
@@ -277,16 +277,68 @@ namespace Electrons
         
         bool AutoConverge()
         {
+            using namespace std;
+        
             // Theory #1: the simulation converges if total potential energy always decreases.
             // Theory #2: the simulation converges if max (particle tangential force) always decreases.
             
+            // Create an auxiliary particle list to hold candidate next frames.
+            const ParticleList::size_type n = particles.size();
+            ParticleList nextlist;
+            nextlist.reserve(n);
+            for (ParticleList::size_type i = 0; i < n; ++i)
+            {
+                nextlist.push_back(Particle());
+            }
             
+            // Start out with a very large dt. Make it smaller until max force decreases.
+            double dt = 4.0;    // known to optimally converge the n=2 case
             
-            return false;
+            const double energyTolerance = 1.0e-10;
+            const int MaxFrames = 1000000;
+            
+            CalcTangentialForces(particles);
+            double energy = PotentialEnergy(particles);
+            while (true)
+            {
+                cout << "frame=" << frame << setprecision(12) << ", energy=" << energy << endl;
+                double nextenergy;
+                while (true)
+                {
+                    UpdatePositions(particles, nextlist, dt);
+                    CalcTangentialForces(nextlist);
+                    nextenergy = PotentialEnergy(nextlist);
+                    
+                    if (fabs(nextenergy - energy) < energyTolerance)
+                        return true;
+                        
+                    if (nextenergy < energy) 
+                        break;
+                    
+                    dt *= 0.99;
+                    cout << "Decreased dt=" << setprecision(6) << fixed << dt << setprecision(12) <<
+                        ", energy=" << energy << 
+                        ", nextenergy=" << nextenergy << 
+                        ", dE=" << scientific << (nextenergy - energy) <<
+                        endl;
+                        
+                    if (dt < 1.0e-20)
+                    {
+                        cout << "*** dt underflowed ***" << endl;
+                        return false;
+                    }
+                }
+                
+                if (++frame > MaxFrames)
+                    return false;   // Simulation did not converge within specified number of frames.
+                    
+                swap(particles, nextlist);
+                energy = nextenergy;
+            }
         }
         
     private:
-        static void CalcTangentialForces(ParticleList& particles)
+        static double CalcTangentialForces(ParticleList& particles)
         {
             // Reset each particle's force to a zero vector.
             for (Particle& p : particles)
@@ -307,17 +359,33 @@ namespace Electrons
             // The particles can only move along the surface of the sphere,
             // so eliminate the radial component of all forces, 
             // leaving tangential forces.
+            double maxForceMag = 0.0;
             for (Particle& p : particles)
             {
                 // Calculate radial component using dot product and subtract
                 // to get tangential component.
                 p.force -= Vector::Dot(p.force, p.position) * p.position;
+                
+#if 0
+                // Sanity check that force is perpendicular to position.
+                // The position is a radial vector, and force must be tangential.
+                double error = Vector::Dot(p.force, p.position);
+                std::cout << "dot(force,position) = " << std::scientific << error << std::fixed << std::endl;
+                if (fabs(error) > 1.0e-13) throw "non-perpendicular force, position";
+#endif
+                
+                double forceMag = p.force.Mag();
+                if (forceMag > maxForceMag)
+                {
+                    maxForceMag = forceMag;
+                }
             }
+            
+            return maxForceMag;
         }
         
-        static double UpdatePositions(ParticleList& inlist, ParticleList& outlist, double dt)
+        static void UpdatePositions(ParticleList& inlist, ParticleList& outlist, double dt)
         {
-            double maxForceMag = 0.0;
             const ParticleList::size_type numParticles = inlist.size();
             if (numParticles != outlist.size())
             {
@@ -327,16 +395,9 @@ namespace Electrons
             for (ParticleList::size_type i=0; i < numParticles; ++i)
             {
                 Particle& p = inlist[i];
-                Particle& q = outlist[i];
-                
-                double forceMag = p.force.Mag();
-                if (forceMag > maxForceMag)
-                {
-                    maxForceMag = forceMag;
-                }
+                Particle& q = outlist[i];                
                 q.position = ((dt * p.force) + p.position).UnitVector();
             }
-            return maxForceMag;
         }
         
         static void AddForces(Particle& a, Particle& b)
@@ -350,6 +411,23 @@ namespace Electrons
             Vector force = forcemag * dp.UnitVector();
             a.force += force;
             b.force -= force;
+        }
+        
+        static double PotentialEnergy(const ParticleList& particles)
+        {
+            // Potential energy is proportional to the sum of reciprocals of
+            // distances between all unique pairs of particles.
+        
+            double energy = 0.0;
+            const ParticleList::size_type numParticles = particles.size();
+            for (ParticleList::size_type i=0; i < numParticles-1; ++i)
+            {
+                for (ParticleList::size_type j=i+1; j < numParticles; ++j)
+                {
+                    energy += 1.0 / (particles[i].position - particles[j].position).Mag();
+                }
+            }
+            return energy;
         }
     };
 }
