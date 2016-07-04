@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <fstream>
 #include <vector>
+#include <utility>
 #include <cstdint>
 #include <cmath>
 #include <cstring>
@@ -257,41 +258,8 @@ namespace Electrons
         double Update(double dt)
         {
             ++frame;
-        
-            // Reset each particle's force to a zero vector.
-            for (Particle& p : particles)
-            {
-                p.force.Reset();
-            }
-            
-            // Compute force between each unique pair of particles.
-            const ParticleList::size_type numParticles = particles.size();
-            for (ParticleList::size_type i=0; i < numParticles-1; ++i)
-            {
-                for (ParticleList::size_type j=i+1; j < numParticles; ++j)
-                {
-                    AddForces(particles[i], particles[j]);
-                }
-            }
-            
-            // The particles can only move along the surface of the sphere,
-            // so eliminate the radial component of all forces, 
-            // leaving tangential forces.
-            double maxForceMag = 0;
-            for (Particle& p : particles)
-            {
-                // Calculate radial component using dot product and subtract
-                // to get tangential component.
-                p.force -= Vector::Dot(p.force, p.position) * p.position;
-                double forceMag = p.force.Mag();
-                if (forceMag > maxForceMag)
-                {
-                    maxForceMag = forceMag;
-                }
-                p.position = ((dt * p.force) + p.position).UnitVector();
-            }
-            
-            return maxForceMag;
+            CalcTangentialForces(particles);
+            return UpdatePositions(particles, particles, dt);
         }
         
         bool Converge(double dt, int maxFrames)
@@ -311,8 +279,68 @@ namespace Electrons
             return true;
         }
         
+        bool AutoConverge()
+        {
+            // Theory #1: the simulation converges if total potential energy always decreases.
+            // Theory #2: the simulation converges if max (particle tangential force) always decreases.
+            return false;
+        }
+        
     private:
-        void static AddForces(Particle& a, Particle& b)
+        static void CalcTangentialForces(ParticleList& particles)
+        {
+            // Reset each particle's force to a zero vector.
+            for (Particle& p : particles)
+            {
+                p.force.Reset();
+            }
+            
+            // Compute force between each unique pair of particles.
+            const ParticleList::size_type numParticles = particles.size();
+            for (ParticleList::size_type i=0; i < numParticles-1; ++i)
+            {
+                for (ParticleList::size_type j=i+1; j < numParticles; ++j)
+                {
+                    AddForces(particles[i], particles[j]);
+                }
+            }
+            
+            // The particles can only move along the surface of the sphere,
+            // so eliminate the radial component of all forces, 
+            // leaving tangential forces.
+            for (Particle& p : particles)
+            {
+                // Calculate radial component using dot product and subtract
+                // to get tangential component.
+                p.force -= Vector::Dot(p.force, p.position) * p.position;
+            }
+        }
+        
+        static double UpdatePositions(ParticleList& inlist, ParticleList& outlist, double dt)
+        {
+            double maxForceMag = 0.0;
+            const ParticleList::size_type numParticles = inlist.size();
+            if (numParticles != outlist.size())
+            {
+                throw "Inconsistent particle list sizes.";
+            }
+            
+            for (ParticleList::size_type i=0; i < numParticles; ++i)
+            {
+                Particle& p = inlist[i];
+                Particle& q = outlist[i];
+                
+                double forceMag = p.force.Mag();
+                if (forceMag > maxForceMag)
+                {
+                    maxForceMag = forceMag;
+                }
+                q.position = ((dt * p.force) + p.position).UnitVector();
+            }
+            return maxForceMag;
+        }
+        
+        static void AddForces(Particle& a, Particle& b)
         {
             // Force of electrically charged particles:
             // F = k*q1*q2/r^2.
@@ -496,6 +524,21 @@ bool TryFixedIncrement(int n, double dt, int &maxframes)
 
 //======================================================================================
 
+int AutoConverge(int n)
+{
+    using namespace std;
+    using namespace Electrons;
+    
+    Simulation sim(n);
+    if (sim.AutoConverge())
+    {
+        return 0;
+    }
+    return 1;
+}
+
+//======================================================================================
+
 int main(int argc, const char *argv[])
 {
     using namespace std;
@@ -505,6 +548,13 @@ int main(int argc, const char *argv[])
         if (argc > 1)
         {
             const char *verb = argv[1];
+            
+            if (!strcmp(verb, "auto") && (argc == 3))
+            {
+                int n = ScanNumParticles(argv[2]);
+                return AutoConverge(n);
+            }
+            
             if (!strcmp(verb, "fixed") && (argc == 4))
             {
                 int maxframes = 0;
