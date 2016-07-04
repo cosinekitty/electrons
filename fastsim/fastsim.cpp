@@ -255,20 +255,16 @@ namespace Electrons
             output << "]}\n";
         }
         
-        double Update(double dt)
-        {
-            ++frame;
-            CalcTangentialForces(particles);
-            return UpdatePositions(particles, particles, dt);
-        }
-        
         bool Converge(double dt, int maxFrames)
         {
             const double forceTolerance = 1.0e-10;
             double force = 1;
             while (force > forceTolerance)
             {
-                force = Update(dt);                
+                ++frame;
+                CalcTangentialForces(particles);
+                force = UpdatePositions(particles, particles, dt);
+                
                 //std::cout << "i=" << i << ", F=" << force << ", dt=" << dt << std::endl;
                 if (frame > maxFrames)
                 {
@@ -283,6 +279,9 @@ namespace Electrons
         {
             // Theory #1: the simulation converges if total potential energy always decreases.
             // Theory #2: the simulation converges if max (particle tangential force) always decreases.
+            
+            
+            
             return false;
         }
         
