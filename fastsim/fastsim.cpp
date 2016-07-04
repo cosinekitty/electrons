@@ -272,20 +272,13 @@ namespace Electrons
             // Theory: the simulation converges if total potential energy always decreases.
             
             // Create an auxiliary particle list to hold candidate next frames.
-            const ParticleList::size_type n = particles.size();
-            ParticleList nextlist;
-            nextlist.reserve(n);
-            for (ParticleList::size_type i = 0; i < n; ++i)
-            {
-                nextlist.push_back(Particle());
-            }
+            ParticleList nextlist = CreateParticleList();
             
             // Start out with a very large dt. Make it smaller until potential energy decreases.
             double dt = 4.0;    // known to optimally converge the n=2 case
             
             const double DeltaPowerTolerance = 1.0e-30;
-            CalcTangentialForces(particles);
-            double energy = PotentialEnergy(particles);
+            double energy = CalcTangentialForces(particles);
             while (true)    // frame loop: each iteration updates the particles' positions
             {
                 ++frame;
@@ -295,8 +288,7 @@ namespace Electrons
                 {
                     ++loop;
                     UpdatePositions(particles, nextlist, dt);
-                    CalcTangentialForces(nextlist);
-                    nextenergy = PotentialEnergy(nextlist);
+                    nextenergy = CalcTangentialForces(nextlist);
                     
                     // We want to detect convergence based on potential energy settling down.
                     // But because dt can change, this alone could cause dE to appear very small.
@@ -333,7 +325,127 @@ namespace Electrons
             }
         }
         
+        bool FastConverge()
+        {
+            using namespace std;
+            
+            // Theory: the simulation converges if total potential energy always decreases.
+            
+            // Create auxiliary particle lists to hold candidate next frames.
+            ParticleList nextlist = CreateParticleList();
+            ParticleList bestlist = CreateParticleList();
+            
+            const double DeltaPowerTolerance = 1.0e-8;
+            double energy = CalcTangentialForces(particles);
+            while (true)    // frame loop: each iteration updates the particles' positions
+            {
+                ++frame;
+                
+                // Search for dt value that decreases potential energy as much as possible.
+                // This is a balance between searching as few dt values as possible
+                // and homing in on as good value as possible.
+                // Calculate reasonable upper bound for dt.
+                double dtUpper = DeltaTimeUpperLimit();
+                
+                // Assume a reasonable lower bound for dt as a fraction of dtUpper.
+                const double beta = 10.0;   // total guess!!!                
+                const int numSteps = 3;    // max values to sample logarithmically between lower and upper bounds                
+                double factor = pow(beta, 1.0/(numSteps-1));
+                double dtAttempt = dtUpper / beta;
+                double dtBest = -1.0;   // impossible value used as a sentinel.
+                double bestenergy = energy;
+                for (int step=0; step < numSteps; ++step)
+                {
+                    ++loop;
+                
+                    // Use dtAttempt to simulate a possible frame.
+                    UpdatePositions(particles, nextlist, dtAttempt);
+                    double nextenergy = CalcTangentialForces(nextlist);                    
+                    
+                    double deltaPower = (nextenergy - energy) / dtAttempt;
+                    cout << "loop=" << loop << ", dt=" << dtAttempt << ", ne=" << nextenergy << ", dP=" << deltaPower << endl;
+                    if (fabs(deltaPower) < DeltaPowerTolerance)
+                    {
+                        // The simulation has converged within acceptable tolerance!
+                        swap(particles, nextlist);
+                        return true;
+                    }
+                    
+                    if (nextenergy > energy)
+                    {
+                        // dtAttempt is too large; we are starting to lose ground.
+                        break;
+                    }
+                    
+                    if (nextenergy < bestenergy)
+                    {
+                        dtBest = dtAttempt;
+                        bestenergy = nextenergy;
+                        swap(bestlist, nextlist);
+                    }
+                
+                    dtAttempt *= factor;
+                }
+                
+                if (dtBest <= 0)
+                {
+                    // Convergence failure: could not decrease the potential energy.
+                    return false;
+                }
+                    
+                swap(particles, bestlist);
+                energy = bestenergy;
+            }
+        }
+        
     private:
+        double DeltaTimeUpperLimit() const
+        {
+            // Goal: find a reasonable upper bound for simulation increment dt.
+            // Strategy: Approximate the value of dt that would result in the closest
+            // pair of particles (ignoring all other particles) to increase their
+            // distance from each other by no more than their current distance times alpha.
+            const double alpha = 0.5;
+            
+            // Find the minimum distance between any pair of particles.
+            double r = MinimumPairDistance(particles);
+            
+            // dr = 2*dt/(r^2), because both particles move by dt/(r^2).
+            // dr = alpha*r.
+            // Therefore, dt = (alpha/2)*r^3.
+            
+            return (alpha/2.0) * (r*r*r);
+        }
+        
+        static double MinimumPairDistance(const ParticleList& particles)
+        {
+            const ParticleList::size_type numParticles = particles.size();
+            if (numParticles < 2)
+            {
+                throw "There must be at least 2 particles to find a minimum pair distance.";
+            }
+            
+            double minDistanceSquared = 5.0;  // particles can never be more than 2 units apart, and 2^2 = 4.
+            for (ParticleList::size_type i=0; i < numParticles-1; ++i)
+            {
+                for (ParticleList::size_type j=i+1; j < numParticles; ++j)
+                {
+                    double distanceSquared = (particles[i].position - particles[j].position).MagSquared();
+                    if (distanceSquared < minDistanceSquared)
+                    {
+                        minDistanceSquared = distanceSquared;
+                    }
+                }
+            }
+            
+            if (minDistanceSquared > 4.000000001)       // allow ample room for roundoff error in the n=2 case
+            {
+                throw "Impossible minimum distance between particles!";
+            }
+            
+            return sqrt(minDistanceSquared);
+        }
+    
         static double CalcTangentialForces(ParticleList& particles)
         {
             // Reset each particle's force to a zero vector.
@@ -342,33 +454,29 @@ namespace Electrons
                 p.force.Reset();
             }
             
-            // Compute force between each unique pair of particles.
+            // Compute force between each unique pair of particles
+            // and total potential energy of the system.
+            double energy = 0.0;
             const ParticleList::size_type numParticles = particles.size();
             for (ParticleList::size_type i=0; i < numParticles-1; ++i)
             {
                 for (ParticleList::size_type j=i+1; j < numParticles; ++j)
                 {
-                    AddForces(particles[i], particles[j]);
+                    energy += AddForces(particles[i], particles[j]);
                 }
             }
             
             // The particles can only move along the surface of the sphere,
             // so eliminate the radial component of all forces, 
             // leaving tangential forces.
-            double maxForceMag = 0.0;
             for (Particle& p : particles)
             {
                 // Calculate radial component using dot product and subtract
                 // to get tangential component.
                 p.force -= Vector::Dot(p.force, p.position) * p.position;
-                double forceMag = p.force.Mag();
-                if (forceMag > maxForceMag)
-                {
-                    maxForceMag = forceMag;
-                }
             }
             
-            return maxForceMag;
+            return energy;
         }
         
         static void UpdatePositions(ParticleList& inlist, ParticleList& outlist, double dt)
@@ -387,7 +495,7 @@ namespace Electrons
             }
         }
         
-        static void AddForces(Particle& a, Particle& b)
+        static double AddForces(Particle& a, Particle& b)
         {
             // Force of electrically charged particles:
             // F = k*q1*q2/r^2.
@@ -398,48 +506,51 @@ namespace Electrons
             Vector force = forcemag * dp.UnitVector();
             a.force += force;
             b.force -= force;
+            
+            // Calculate potential energy of this pair and return it.
+            // Potential energy is proportional to 1/r = sqrt(1/r^2).
+            return sqrt(forcemag);
         }
         
-        static double PotentialEnergy(const ParticleList& particles)
+        ParticleList CreateParticleList()
         {
-            // Potential energy is proportional to the sum of reciprocals of
-            // distances between all unique pairs of particles.
-        
-            double energy = 0.0;
-            const ParticleList::size_type numParticles = particles.size();
-            for (ParticleList::size_type i=0; i < numParticles-1; ++i)
+            const ParticleList::size_type n = particles.size();
+            ParticleList list;
+            list.reserve(n);
+            for (ParticleList::size_type i = 0; i < n; ++i)
             {
-                for (ParticleList::size_type j=i+1; j < numParticles; ++j)
-                {
-                    energy += 1.0 / (particles[i].position - particles[j].position).Mag();
-                }
+                list.push_back(Particle());
             }
-            return energy;
+            return list;
         }
     };
 }
 
 //======================================================================================
 
+const int MinParticles = 2;
 const int MaxParticles = 1000;
     
 void PrintUsage()
 {
     std::cout <<
         "\n"
-        "USAGE:\n"
+        "USAGE: (where N=" << MinParticles << ".." << MaxParticles << ")\n"
         "\n"
         "fastsim auto N shrink\n"
         "    Simulate N particles using automatic convergence algorithm.\n"
         "    The 'shrink' value must be between 0 and 1, specifying how\n"
         "    much to reduce dt each time potential energy increases.\n"
+        "\n"
+        "fastsim fast N\n"
+        "    Simulate N particles using improved convergence algorithm.\n"
         "\n";
 }
 
 int ScanNumParticles(const char *text)
 {
     int n = atoi(text);
-    if (n<1 || n>MaxParticles)
+    if (n<MinParticles || n>MaxParticles)
     {
         throw "Invalid number of particles.";
     }
@@ -458,6 +569,18 @@ int main(int argc, const char *argv[])
         {
             const char *verb = argv[1];
             
+            if (!strcmp(verb, "fast") && (argc == 3))
+            {
+                int n = ScanNumParticles(argv[2]);
+                Simulation sim(n);
+                if (sim.FastConverge())
+                {
+                    cout << "Converged after " << sim.FrameCount() << " frames, " << sim.LoopCount() << " loops." << endl;
+                    return 0;
+                }
+                return 1;
+            }
+            
             if (!strcmp(verb, "auto") && (argc == 4))
             {
                 int n = ScanNumParticles(argv[2]);
@@ -469,6 +592,7 @@ int main(int argc, const char *argv[])
                     cout << "Converged after " << sim.FrameCount() << " frames, " << sim.LoopCount() << " loops." << endl;
                     return 0;
                 }
+                return 1;
             }            
         }
     
