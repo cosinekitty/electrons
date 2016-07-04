@@ -273,13 +273,13 @@ namespace Electrons
             // Start out with a very large dt. Make it smaller until potential energy decreases.
             double dt = 4.0;    // known to optimally converge the n=2 case
             
-            const double DeltaEnergyTolerance = 1.0e-10;            
+            const double DeltaPowerTolerance = 1.0e-30;
             CalcTangentialForces(particles);
             double energy = PotentialEnergy(particles);
             while (true)    // frame loop: each iteration updates the particles' positions
             {
                 ++frame;
-                //cout << "frame=" << frame << setprecision(12) << ", energy=" << energy << endl;
+                //cout << "frame=" << frame << setprecision(12) << ", energy=" << energy << ", dt=" << dt << endl;
                 double nextenergy;
                 while (true)    // dt adjustment loop: adjust dt as needed for potential energy to decrease
                 {
@@ -287,8 +287,18 @@ namespace Electrons
                     CalcTangentialForces(nextlist);
                     nextenergy = PotentialEnergy(nextlist);
                     
-                    if (fabs(nextenergy - energy) < DeltaEnergyTolerance)
+                    // We want to detect convergence based on potential energy settling down.
+                    // But because dt can change, this alone could cause dE to appear very small.
+                    // So calculate the instantaneous power dP = dE/dt as a metric of convergence.
+                    double dP = (nextenergy - energy) / dt;
+                    //cout << "dP = " << scientific << setprecision(15) << dP << endl;
+                    
+                    if (fabs(dP) < DeltaPowerTolerance)
+                    {
+                        //cout << "final dt = " << dt << endl;
+                        swap(particles, nextlist);  // get that last little bit of refinement
                         return true;    // the simulation has settled down enough!
+                    }
                         
                     if (nextenergy < energy) 
                         break;
