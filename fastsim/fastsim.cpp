@@ -335,10 +335,11 @@ namespace Electrons
             ParticleList nextlist = CreateParticleList();
             ParticleList bestlist = CreateParticleList();
             
-            const double DeltaPowerTolerance = 1.0e-8;
+            const double DeltaPowerTolerance = 1.0e-8 * ParticleCount();
             double energy = CalcTangentialForces(particles);
             while (true)    // frame loop: each iteration updates the particles' positions
             {
+//recovered:
                 ++frame;
                 
                 // Search for dt value that decreases potential energy as much as possible.
@@ -349,7 +350,7 @@ namespace Electrons
                 
                 // Assume a reasonable lower bound for dt as a fraction of dtUpper.
                 const double beta = 10.0;   // total guess!!!                
-                const int numSteps = 3;    // max values to sample logarithmically between lower and upper bounds                
+                const int numSteps = 2;    // max values to sample logarithmically between lower and upper bounds                
                 double factor = pow(beta, 1.0/(numSteps-1));
                 double dtAttempt = dtUpper / beta;
                 double dtBest = -1.0;   // impossible value used as a sentinel.
@@ -362,8 +363,18 @@ namespace Electrons
                     UpdatePositions(particles, nextlist, dtAttempt);
                     double nextenergy = CalcTangentialForces(nextlist);                    
                     
-                    double deltaPower = (nextenergy - energy) / dtAttempt;
-                    cout << "loop=" << loop << ", dt=" << dtAttempt << ", ne=" << nextenergy << ", dP=" << deltaPower << endl;
+                    double deltaEnergy = nextenergy - energy;
+                    double deltaPower = deltaEnergy / dtAttempt;
+                    
+#if 0
+                    cout << "loop=" << loop << 
+                        setprecision(15) << 
+                        ", dt=" << dtAttempt << 
+                        ", ne=" << nextenergy << 
+                        ", dP=" << deltaPower << 
+                        ", dE=" << deltaEnergy << endl;
+#endif
+                        
                     if (fabs(deltaPower) < DeltaPowerTolerance)
                     {
                         // The simulation has converged within acceptable tolerance!
@@ -389,6 +400,36 @@ namespace Electrons
                 
                 if (dtBest <= 0)
                 {
+#if 0
+                    // Could not find an energy improvement in the expected range.
+                    // Look below the expected range until we either decrease energy
+                    // or dtAttempt gets too small.
+                    dtAttempt = dtUpper / (beta * factor);
+                    while (dtAttempt > 1.0e-8)
+                    {
+                        ++loop;
+                        UpdatePositions(particles, nextlist, dtAttempt);
+                        double nextenergy = CalcTangentialForces(nextlist);
+                        double deltaPower = (nextenergy - energy) / dtAttempt;
+                        cout << "BACKTRACK loop=" << loop << ", dt=" << dtAttempt << ", ne=" << nextenergy << ", dP=" << deltaPower << endl;
+                        if (fabs(deltaPower) < DeltaPowerTolerance)
+                        {
+                            // The simulation has converged within acceptable tolerance!
+                            swap(particles, nextlist);
+                            return true;
+                        }
+                        
+                        if (nextenergy < energy)
+                        {
+                            swap(particles, nextlist);
+                            energy = nextenergy;
+                            goto recovered;
+                        }
+                        
+                        dtAttempt /= factor;
+                    }
+#endif
+                
                     // Convergence failure: could not decrease the potential energy.
                     return false;
                 }
