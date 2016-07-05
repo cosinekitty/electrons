@@ -649,17 +649,36 @@ void Save(Electrons::Simulation& sim, const char *outFileName)
 
 //======================================================================================
 
-bool Compare (Electrons::Simulation& asim, Electrons::Simulation& bsim)
+inline bool Different(double x, double y, const char *label, double tolerance = 1.0e-6)
 {
     using namespace std;
 
-    if (asim.ParticleCount() != bsim.ParticleCount())
+    double diff = fabs(x - y);
+    if (diff >= tolerance)
+    {
+        cout << "Different " << label << ": x=" << x << ", y=" << y << ", diff=" << diff << ", tolerance=" << tolerance << endl;
+        return false;
+    }
+    return true;
+}
+
+bool Compare(Electrons::Simulation& asim, Electrons::Simulation& bsim)
+{
+    using namespace std;
+
+    const int n = asim.ParticleCount();
+    if (n != bsim.ParticleCount())
     {
         cout << "Simulations have different particle counts." << endl;
         return false;
     }
 
-    throw "Simulation comparison not yet implemented.";
+    if (Different(asim.PotentialEnergy(), bsim.PotentialEnergy(), "potential energies"))
+    {
+        return false;
+    }
+
+    return true;
 }
 
 
