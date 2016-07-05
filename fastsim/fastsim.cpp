@@ -454,8 +454,9 @@ void PrintUsage()
         "\n"
         "USAGE: (where N=" << MinParticles << ".." << MaxParticles << ")\n"
         "\n"
-        "fastsim converge N\n"
+        "fastsim converge N [outfile.json]\n"
         "    Simulate N particles until they reach minimum potential energy.\n"
+        "    If output filename is omitted, it defaults to 'sim.json'.\n"
         "\n";
 }
 
@@ -481,21 +482,27 @@ int main(int argc, const char *argv[])
         {
             const char *verb = argv[1];
             
-            if (!strcmp(verb, "converge") && (argc == 3))
+            if (!strcmp(verb, "converge") && (argc >= 3) && (argc <= 4))
             {
                 int n = ScanNumParticles(argv[2]);
+                const char *outFileName = (argc > 3) ? argv[3] : "sim.json";
+                if (0 == remove(outFileName))
+                {
+                    cout << "Deleted existing file '" << outFileName << "'" << endl;
+                }
                 Simulation sim(n);
                 if (sim.Converge())
                 {
                     cout << "Converged after " << sim.FrameCount() << " frames, " << sim.UpdateCount() << " updates." << endl;
                     {
-                        ofstream outfile("sim.json");
+                        ofstream outfile(outFileName);
                         if (!outfile)
                         {
                             cout << "Error opening output file!" << endl;
                             return 1;
                         }
                         sim.JsonPrint(outfile, 0);
+                        cout << "Saved final state to file '" << outFileName << "'" << endl;
                     }
                     return 0;
                 }
