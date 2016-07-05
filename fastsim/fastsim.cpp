@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cmath>
 #include <cstring>
+#include <string>
 
 namespace Electrons
 {
@@ -339,7 +340,6 @@ namespace Electrons
             double energy = CalcTangentialForces(particles);
             while (true)    // frame loop: each iteration updates the particles' positions
             {
-//recovered:
                 ++frame;
                 
                 // Search for dt value that decreases potential energy as much as possible.
@@ -385,6 +385,17 @@ namespace Electrons
                     if (nextenergy > energy)
                     {
                         // dtAttempt is too large; we are starting to lose ground.
+                        if (dtBest < 0)
+                        {
+                            cout << "LOSING GROUND at loop=" << loop << 
+                                setprecision(15) << 
+                                ", dt=" << dtAttempt << 
+                                ", ne=" << nextenergy << 
+                                ", dP=" << deltaPower << 
+                                ", dE=" << deltaEnergy << endl;
+                                
+                            return true;    //!!!!!!!!!!!!
+                        }
                         break;
                     }
                     
@@ -398,42 +409,6 @@ namespace Electrons
                     dtAttempt *= factor;
                 }
                 
-                if (dtBest <= 0)
-                {
-#if 0
-                    // Could not find an energy improvement in the expected range.
-                    // Look below the expected range until we either decrease energy
-                    // or dtAttempt gets too small.
-                    dtAttempt = dtUpper / (beta * factor);
-                    while (dtAttempt > 1.0e-8)
-                    {
-                        ++loop;
-                        UpdatePositions(particles, nextlist, dtAttempt);
-                        double nextenergy = CalcTangentialForces(nextlist);
-                        double deltaPower = (nextenergy - energy) / dtAttempt;
-                        cout << "BACKTRACK loop=" << loop << ", dt=" << dtAttempt << ", ne=" << nextenergy << ", dP=" << deltaPower << endl;
-                        if (fabs(deltaPower) < DeltaPowerTolerance)
-                        {
-                            // The simulation has converged within acceptable tolerance!
-                            swap(particles, nextlist);
-                            return true;
-                        }
-                        
-                        if (nextenergy < energy)
-                        {
-                            swap(particles, nextlist);
-                            energy = nextenergy;
-                            goto recovered;
-                        }
-                        
-                        dtAttempt /= factor;
-                    }
-#endif
-                
-                    // Convergence failure: could not decrease the potential energy.
-                    return false;
-                }
-                    
                 swap(particles, bestlist);
                 energy = bestenergy;
             }
@@ -617,6 +592,15 @@ int main(int argc, const char *argv[])
                 if (sim.FastConverge())
                 {
                     cout << "Converged after " << sim.FrameCount() << " frames, " << sim.LoopCount() << " loops." << endl;
+                    {
+                        ofstream outfile("sim.json");
+                        if (!outfile)
+                        {
+                            cout << "Error opening output file!" << endl;
+                            return 1;
+                        }
+                        sim.JsonPrint(outfile, 0);
+                    }
                     return 0;
                 }
                 return 1;
@@ -629,7 +613,6 @@ int main(int argc, const char *argv[])
                 Simulation sim(n);
                 if (sim.AutoConverge(shrink))
                 {
-                    //sim.JsonPrint(cout, 0);
                     cout << "Converged after " << sim.FrameCount() << " frames, " << sim.LoopCount() << " loops." << endl;
                     return 0;
                 }
