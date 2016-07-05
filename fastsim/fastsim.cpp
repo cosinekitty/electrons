@@ -617,6 +617,10 @@ void PrintUsage()
         "\n"
         "fastsim random N outfile.json\n"
         "    Save a random configuration of N particles to the specified file.\n"
+        "\n"
+        "fastsim copy infile.json outfile.json\n"
+        "    Loads simulation from infile, then writes to outfile.\n"
+        "    Not much practical value; used as a unit test of the loader.\n"
         "\n";
 }
 
