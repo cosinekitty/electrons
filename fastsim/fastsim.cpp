@@ -330,13 +330,13 @@ namespace Electrons
         {
             using namespace std;
             
-            // Theory: the simulation converges if total potential energy always decreases.
+            const double beta = 5.0;
+            const double shrink = 0.9;
             
             // Create auxiliary particle lists to hold candidate next frames.
             ParticleList nextlist = CreateParticleList();
             ParticleList bestlist = CreateParticleList();
             
-            const double DeltaPowerTolerance = 1.0e-8 * ParticleCount();
             double energy = CalcTangentialForces(particles);
             while (true)    // frame loop: each iteration updates the particles' positions
             {
@@ -349,68 +349,27 @@ namespace Electrons
                 double dtUpper = DeltaTimeUpperLimit();
                 
                 // Assume a reasonable lower bound for dt as a fraction of dtUpper.
-                const double beta = 10.0;   // total guess!!!                
-                const int numSteps = 2;    // max values to sample logarithmically between lower and upper bounds                
-                double factor = pow(beta, 1.0/(numSteps-1));
-                double dtAttempt = dtUpper / beta;
-                double dtBest = -1.0;   // impossible value used as a sentinel.
-                double bestenergy = energy;
-                for (int step=0; step < numSteps; ++step)
-                {
-                    ++loop;
+                double dt = dtUpper / beta;
                 
-                    // Use dtAttempt to simulate a possible frame.
-                    UpdatePositions(particles, nextlist, dtAttempt);
-                    double nextenergy = CalcTangentialForces(nextlist);                    
-                    
-                    double deltaEnergy = nextenergy - energy;
-                    double deltaPower = deltaEnergy / dtAttempt;
-                    
-#if 0
-                    cout << "loop=" << loop << 
-                        setprecision(15) << 
-                        ", dt=" << dtAttempt << 
-                        ", ne=" << nextenergy << 
-                        ", dP=" << deltaPower << 
-                        ", dE=" << deltaEnergy << endl;
-#endif
-                        
-                    if (fabs(deltaPower) < DeltaPowerTolerance)
+                // Use dtAttempt to simulate a possible frame.
+                UpdatePositions(particles, nextlist, dt);
+                double nextenergy = CalcTangentialForces(nextlist);                    
+                ++loop;
+
+                while (nextenergy >= energy)
+                {
+                    dt *= shrink;
+                    if (dt < 1.0e-6)
                     {
-                        // The simulation has converged within acceptable tolerance!
-                        swap(particles, nextlist);
                         return true;
                     }
-                    
-                    if (nextenergy > energy)
-                    {
-                        // dtAttempt is too large; we are starting to lose ground.
-                        if (dtBest < 0)
-                        {
-                            cout << "LOSING GROUND at loop=" << loop << 
-                                setprecision(15) << 
-                                ", dt=" << dtAttempt << 
-                                ", ne=" << nextenergy << 
-                                ", dP=" << deltaPower << 
-                                ", dE=" << deltaEnergy << endl;
-                                
-                            return true;    //!!!!!!!!!!!!
-                        }
-                        break;
-                    }
-                    
-                    if (nextenergy < bestenergy)
-                    {
-                        dtBest = dtAttempt;
-                        bestenergy = nextenergy;
-                        swap(bestlist, nextlist);
-                    }
-                
-                    dtAttempt *= factor;
+                    UpdatePositions(particles, nextlist, dt);
+                    nextenergy = CalcTangentialForces(nextlist);
+                    ++loop;
                 }
                 
-                swap(particles, bestlist);
-                energy = bestenergy;
+                swap(particles, nextlist);
+                energy = nextenergy;
             }
         }
         
