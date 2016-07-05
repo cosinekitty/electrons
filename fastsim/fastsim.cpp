@@ -469,7 +469,20 @@ namespace Electrons
             return list;
         }
         
-#define AppendChar(s,i,c)  do{if(i < MAXSTRING) {s[i++] = c; s[i] = '\0';} else throw "String is too long in input file.";}while(false)
+        static const int MAXSTRING = 40;
+
+        void AppendChar(char *string, int& index, char c)
+        {
+            if (index < MAXSTRING)
+            {
+                string[index++] = c;
+                string[index] = '\0';
+            }
+            else
+            {
+                throw "JSON token is too long.";
+            }
+        }
 
         void JsonLoad(const char *inFileName)
         {
@@ -496,7 +509,6 @@ namespace Electrons
             // Then look for all sequences of digits, minus signs, or periods.
             // We can determine what each number means by looking at the last 1 or 2 strings.
 
-            const int MAXSTRING = 40;
             char key[1 + MAXSTRING];
             char numeric[1 + MAXSTRING];
             key[0] = numeric[0] = '\0';
@@ -588,8 +600,6 @@ namespace Electrons
             
             energy = CalcTangentialForces(particles);
         }
-
-#undef AppendChar
     };
 }
 
