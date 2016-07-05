@@ -1,2 +1,2 @@
 #!/bin/bash
-g++ -g -Wall --std=c++11 -o dfastsim fastsim.cpp && gdb -tui --args dfastsim $*
+g++ -g -Wall --std=c++0x -o dfastsim fastsim.cpp && gdb -tui --args dfastsim $*
