@@ -649,6 +649,22 @@ void Save(Electrons::Simulation& sim, const char *outFileName)
 
 //======================================================================================
 
+bool Compare (Electrons::Simulation& asim, Electrons::Simulation& bsim)
+{
+    using namespace std;
+
+    if (asim.ParticleCount() != bsim.ParticleCount())
+    {
+        cout << "Simulations have different particle counts." << endl;
+        return false;
+    }
+
+    throw "Simulation comparison not yet implemented.";
+}
+
+
+//======================================================================================
+
 int main(int argc, const char *argv[])
 {
     using namespace std;
@@ -695,6 +711,20 @@ int main(int argc, const char *argv[])
                 Simulation sim(inFileName);
                 Save(sim, outFileName);
                 return 0;
+            }
+
+            if (!strcmp(verb, "compare") && (argc == 4))
+            {
+                const char *aFileName = argv[2];
+                const char *bFileName = argv[3];
+                Simulation asim(aFileName);
+                Simulation bsim(bFileName);
+                if (Compare(asim, bsim))
+                {
+                    cout << "The simulations are equivalent." << endl;
+                    return 0;
+                }
+                return 9;   // special return value that scripts can use to find a surprising convergence!
             }
         }
     
