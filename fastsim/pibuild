@@ -1,0 +1,3 @@
+#!/bin/bash
+# Use this build script on Raspberry Pi, where --std=c++11 option is not supported.
+g++ -O3 -Wall --std=c++0x -o fastsim fastsim.cpp
