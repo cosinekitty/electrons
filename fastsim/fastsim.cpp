@@ -211,22 +211,36 @@ namespace Electrons
         ParticleList particles;
         int frameCount;
         int updateCount;
+        double energy;
     
     public:
+        static const int MinParticles = 2;
+        static const int MaxParticles = 1000;
+        
         Simulation(int numPoints)       // create an initial random state
             : frameCount(0)
             , updateCount(0)
         {
             using namespace std;
             
-            if (numPoints < 0) throw "Number of points not allowed to be negative.";        
+            if ((numPoints < MinParticles) || (numPoints > MaxParticles))
+            {
+                throw "Invalid number of particles.";        
+            }
+                
             ifstream infile("/dev/urandom", ios::in | ios::binary);
-            if (!infile) throw "Could not open /dev/urandom to obtain random numbers.";
+            if (!infile) 
+            {
+                throw "Could not open /dev/urandom to obtain random numbers.";
+            }
+                
             particles.reserve(static_cast<ParticleList::size_type>(numPoints));
             for (int i=0; i < numPoints; ++i)
             {
                 particles.push_back(Particle(RandomSpherePoint(infile)));
             }
+            
+            energy = CalcTangentialForces(particles);
         }
         
         int ParticleCount() const
@@ -244,12 +258,22 @@ namespace Electrons
             return updateCount;
         }
         
+        double PotentialEnergy() const
+        {
+            return energy;
+        }
+        
         void JsonPrint(std::ostream& output, int indent) const
         {
             using namespace std;
             
             JsonIndent(output, indent);
-            output << "{\"frame\": " << frameCount << ", \"update\":" << updateCount << ", \"particles\": [\n";
+            output << setprecision(12) <<
+                "{\"frame\": " << frameCount << 
+                ", \"update\":" << updateCount << 
+                ", \"energy\":" << energy << 
+                ", \"particles\": [\n";
+                
             bool first = true;
             for (const Particle& p : particles) 
             {
@@ -259,6 +283,7 @@ namespace Electrons
                 output << "\n";
                 first = false;
             }
+            
             JsonIndent(output, indent);
             output << "]}\n";
         }
@@ -270,12 +295,12 @@ namespace Electrons
             // Create auxiliary particle lists to hold candidate next frames.
             ParticleList nextlist = CreateParticleList();
             ParticleList bestlist = CreateParticleList();
-            
-            double energy = CalcTangentialForces(particles);
+
+            // The potential energy and tangential forces have already been calculated
+            // for the current configuration.  See constructor.
+                        
             while (true)    // frame loop: each iteration updates the particles' positions
-            {
-                ++frameCount;
-                
+            {                
                 // Search for dt value that decreases potential energy as much as possible.
                 // This is a balance between searching as few dt values as possible
                 // and homing in on as good value as possible.
@@ -292,12 +317,13 @@ namespace Electrons
                         // of the system. Consider the system to be converged.
                         return true;
                     }
-                    dt *= 0.5;
+                    dt *= 0.5;      // shrink dt and try adjusting the particle locations again
                     nextenergy = Update(particles, nextlist, dt);
                 }
                 
                 swap(particles, nextlist);
                 energy = nextenergy;
+                ++frameCount;
             }
         }
         
@@ -438,30 +464,44 @@ namespace Electrons
 }
 
 //======================================================================================
-
-const int MinParticles = 2;
-const int MaxParticles = 1000;
     
 void PrintUsage()
 {
     std::cout <<
         "\n"
-        "USAGE: (where N=" << MinParticles << ".." << MaxParticles << ")\n"
+        "USAGE: (where N=" << Electrons::Simulation::MinParticles << ".." << Electrons::Simulation::MaxParticles << ")\n"
         "\n"
         "fastsim converge N [outfile.json]\n"
         "    Simulate N particles until they reach minimum potential energy.\n"
         "    If output filename is omitted, it defaults to 'sim.json'.\n"
+        "\n"
+        "fastsim random N outfile.json\n"
+        "    Save a random configuration of N particles to the specified file.\n"
         "\n";
 }
 
 int ScanNumParticles(const char *text)
 {
     int n = atoi(text);
-    if (n<MinParticles || n>MaxParticles)
+    if ((n < Electrons::Simulation::MinParticles) || (n > Electrons::Simulation::MaxParticles))
     {
         throw "Invalid number of particles.";
     }
     return n;
+}
+
+void Save(Electrons::Simulation& sim, const char *outFileName)
+{
+    std::ofstream outfile(outFileName);
+    if (!outfile)
+    {
+        throw "Error opening output file!";
+    }
+    sim.JsonPrint(outfile, 0);
+    if (!outfile)
+    {
+        throw "Error writing to output file!";
+    }
 }
 
 //======================================================================================
@@ -488,20 +528,20 @@ int main(int argc, const char *argv[])
                 if (sim.Converge())
                 {
                     cout << "Converged after " << sim.FrameCount() << " frames, " << sim.UpdateCount() << " updates." << endl;
-                    {
-                        ofstream outfile(outFileName);
-                        if (!outfile)
-                        {
-                            cout << "Error opening output file!" << endl;
-                            return 1;
-                        }
-                        sim.JsonPrint(outfile, 0);
-                        cout << "Saved final state to file '" << outFileName << "'" << endl;
-                    }
+                    Save(sim, outFileName);
                     return 0;
                 }
                 cout << "FAILED TO CONVERGE!" << endl;
                 return 1;
+            }
+            
+            if (!strcmp(verb, "random") && (argc == 4))
+            {
+                int n = ScanNumParticles(argv[2]);
+                const char *outFileName = argv[3];
+                Simulation sim(n);
+                Save(sim, outFileName);
+                return 0;
             }
         }
     
