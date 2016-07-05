@@ -267,9 +267,6 @@ namespace Electrons
         {
             using namespace std;
             
-            const double beta = 2.0;
-            const double shrink = 0.5;
-            
             // Create auxiliary particle lists to hold candidate next frames.
             ParticleList nextlist = CreateParticleList();
             ParticleList bestlist = CreateParticleList();
@@ -283,10 +280,7 @@ namespace Electrons
                 // This is a balance between searching as few dt values as possible
                 // and homing in on as good value as possible.
                 // Calculate reasonable upper bound for dt.
-                double dtUpper = DeltaTimeUpperLimit();
-                
-                // Assume a reasonable lower bound for dt as a fraction of dtUpper.
-                double dt = dtUpper / beta;
+                double dt = DeltaTimeUpperLimit();
                 
                 // Use dtAttempt to simulate a possible frame.
                 double nextenergy = Update(particles, nextlist, dt);
@@ -298,7 +292,7 @@ namespace Electrons
                         // of the system. Consider the system to be converged.
                         return true;
                     }
-                    dt *= shrink;
+                    dt *= 0.5;
                     nextenergy = Update(particles, nextlist, dt);
                 }
                 
