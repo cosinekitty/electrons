@@ -103,8 +103,7 @@ namespace Electrons
         Vector force;
         
         Particle(): position(), force() {}
-        Particle(const Vector& _position): position(_position), force() {}
-        Particle(const Vector& _position, const Vector& _force): position(_position), force(_force) {}
+        Particle(const Vector& _position): position(_position.UnitVector()), force() {}
     };
     
     typedef std::vector<Particle> ParticleList;
