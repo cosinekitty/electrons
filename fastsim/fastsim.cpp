@@ -209,13 +209,13 @@ namespace Electrons
     {
     private:
         ParticleList particles;
-        int frame;
-        int loop;
+        int frameCount;
+        int updateCount;
     
     public:
         Simulation(int numPoints)       // create an initial random state
-            : frame(0)
-            , loop(0)
+            : frameCount(0)
+            , updateCount(0)
         {
             using namespace std;
             
@@ -236,12 +236,12 @@ namespace Electrons
         
         int FrameCount() const
         {
-            return frame;
+            return frameCount;
         }
         
-        int LoopCount() const
+        int UpdateCount() const
         {
-            return loop;
+            return updateCount;
         }
         
         void JsonPrint(std::ostream& output, int indent) const
@@ -249,7 +249,7 @@ namespace Electrons
             using namespace std;
             
             JsonIndent(output, indent);
-            output << "{\"frame\": " << frame << ", \"particles\": [\n";
+            output << "{\"frame\": " << frameCount << ", \"update\":" << updateCount << ", \"particles\": [\n";
             bool first = true;
             for (const Particle& p : particles) 
             {
@@ -263,75 +263,12 @@ namespace Electrons
             output << "]}\n";
         }
         
-        bool AutoConverge(double shrink)
+        bool Converge()
         {
             using namespace std;
             
-            if (shrink<=0.0 || shrink>=1.0)
-                throw "Shrink factor must be between 0 and 1.";
-        
-            // Theory: the simulation converges if total potential energy always decreases.
-            
-            // Create an auxiliary particle list to hold candidate next frames.
-            ParticleList nextlist = CreateParticleList();
-            
-            // Start out with a very large dt. Make it smaller until potential energy decreases.
-            double dt = 4.0;    // known to optimally converge the n=2 case
-            
-            const double DeltaPowerTolerance = 1.0e-30;
-            double energy = CalcTangentialForces(particles);
-            while (true)    // frame loop: each iteration updates the particles' positions
-            {
-                ++frame;
-                //cout << "frame=" << frame << setprecision(12) << ", energy=" << energy << ", dt=" << dt << endl;
-                double nextenergy;
-                while (true)    // dt adjustment loop: adjust dt as needed for potential energy to decrease
-                {
-                    ++loop;
-                    UpdatePositions(particles, nextlist, dt);
-                    nextenergy = CalcTangentialForces(nextlist);
-                    
-                    // We want to detect convergence based on potential energy settling down.
-                    // But because dt can change, this alone could cause dE to appear very small.
-                    // So calculate the instantaneous power dP = dE/dt as a metric of convergence.
-                    double dP = (nextenergy - energy) / dt;
-                    //cout << "dP = " << scientific << setprecision(15) << dP << endl;
-                    
-                    if (fabs(dP) < DeltaPowerTolerance)
-                    {
-                        //cout << "final dt = " << dt << endl;
-                        swap(particles, nextlist);  // get that last little bit of refinement
-                        return true;    // the simulation has settled down enough!
-                    }
-                        
-                    if (nextenergy < energy) 
-                        break;
-                    
-                    dt *= shrink;
-                    
-#if 0                   
-                    cout << "Decreased dt=" << setprecision(6) << fixed << dt << setprecision(12) <<
-                        ", energy=" << energy << 
-                        ", nextenergy=" << nextenergy << 
-                        ", dE=" << scientific << (nextenergy - energy) <<
-                        endl;
-#endif
-                        
-                    if (dt < 1.0e-20)
-                        return false;   // dt has decreased so much that we are probably stuck!
-                }
-                    
-                swap(particles, nextlist);
-                energy = nextenergy;
-            }
-        }
-        
-        bool FastConverge()
-        {
-            using namespace std;
-            
-            const double beta = 5.0;
-            const double shrink = 0.9;
+            const double beta = 2.0;
+            const double shrink = 0.5;
             
             // Create auxiliary particle lists to hold candidate next frames.
             ParticleList nextlist = CreateParticleList();
@@ -340,7 +277,7 @@ namespace Electrons
             double energy = CalcTangentialForces(particles);
             while (true)    // frame loop: each iteration updates the particles' positions
             {
-                ++frame;
+                ++frameCount;
                 
                 // Search for dt value that decreases potential energy as much as possible.
                 // This is a balance between searching as few dt values as possible
@@ -352,20 +289,17 @@ namespace Electrons
                 double dt = dtUpper / beta;
                 
                 // Use dtAttempt to simulate a possible frame.
-                UpdatePositions(particles, nextlist, dt);
-                double nextenergy = CalcTangentialForces(nextlist);                    
-                ++loop;
-
+                double nextenergy = Update(particles, nextlist, dt);
                 while (nextenergy >= energy)
                 {
-                    dt *= shrink;
-                    if (dt < 1.0e-6)
+                    if (dt < 1.0e-20)
                     {
+                        // We have made dt extremely small, yet we still can't decrease potential energy
+                        // of the system. Consider the system to be converged.
                         return true;
                     }
-                    UpdatePositions(particles, nextlist, dt);
-                    nextenergy = CalcTangentialForces(nextlist);
-                    ++loop;
+                    dt *= shrink;
+                    nextenergy = Update(particles, nextlist, dt);
                 }
                 
                 swap(particles, nextlist);
@@ -374,6 +308,13 @@ namespace Electrons
         }
         
     private:
+        double Update(ParticleList& currlist, ParticleList& nextlist, double dt)
+        {
+            ++updateCount;
+            UpdatePositions(currlist, nextlist, dt);
+            return CalcTangentialForces(nextlist);      // returns updated potential energy of particles in 'nextlist'
+        }
+    
         double DeltaTimeUpperLimit() const
         {
             // Goal: find a reasonable upper bound for simulation increment dt.
@@ -467,6 +408,7 @@ namespace Electrons
                 Particle& p = inlist[i];
                 Particle& q = outlist[i];                
                 q.position = ((dt * p.force) + p.position).UnitVector();
+                // IMPORTANT: q.force is left whatever random garbage was there before - NOT VALID VALUES!
             }
         }
         
@@ -512,13 +454,8 @@ void PrintUsage()
         "\n"
         "USAGE: (where N=" << MinParticles << ".." << MaxParticles << ")\n"
         "\n"
-        "fastsim auto N shrink\n"
-        "    Simulate N particles using automatic convergence algorithm.\n"
-        "    The 'shrink' value must be between 0 and 1, specifying how\n"
-        "    much to reduce dt each time potential energy increases.\n"
-        "\n"
-        "fastsim fast N\n"
-        "    Simulate N particles using improved convergence algorithm.\n"
+        "fastsim converge N\n"
+        "    Simulate N particles until they reach minimum potential energy.\n"
         "\n";
 }
 
@@ -544,13 +481,13 @@ int main(int argc, const char *argv[])
         {
             const char *verb = argv[1];
             
-            if (!strcmp(verb, "fast") && (argc == 3))
+            if (!strcmp(verb, "converge") && (argc == 3))
             {
                 int n = ScanNumParticles(argv[2]);
                 Simulation sim(n);
-                if (sim.FastConverge())
+                if (sim.Converge())
                 {
-                    cout << "Converged after " << sim.FrameCount() << " frames, " << sim.LoopCount() << " loops." << endl;
+                    cout << "Converged after " << sim.FrameCount() << " frames, " << sim.UpdateCount() << " updates." << endl;
                     {
                         ofstream outfile("sim.json");
                         if (!outfile)
@@ -562,21 +499,9 @@ int main(int argc, const char *argv[])
                     }
                     return 0;
                 }
+                cout << "FAILED TO CONVERGE!" << endl;
                 return 1;
             }
-            
-            if (!strcmp(verb, "auto") && (argc == 4))
-            {
-                int n = ScanNumParticles(argv[2]);
-                double shrink = atof(argv[3]);
-                Simulation sim(n);
-                if (sim.AutoConverge(shrink))
-                {
-                    cout << "Converged after " << sim.FrameCount() << " frames, " << sim.LoopCount() << " loops." << endl;
-                    return 0;
-                }
-                return 1;
-            }            
         }
     
         PrintUsage();
