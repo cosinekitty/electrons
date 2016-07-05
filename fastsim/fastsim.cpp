@@ -243,6 +243,14 @@ namespace Electrons
             energy = CalcTangentialForces(particles);
         }
         
+        Simulation(const char *inJsonFile)
+            : frameCount(0)
+            , updateCount(0)
+            , energy(0)
+        {
+            JsonLoad(inJsonFile);
+        }
+        
         int ParticleCount() const
         {
             return static_cast<int>(particles.size());
@@ -269,7 +277,7 @@ namespace Electrons
             
             JsonIndent(output, indent);
             output << setprecision(12) <<
-                "{\"frame\": " << frameCount << 
+                "{\"frame\":" << frameCount << 
                 ", \"update\":" << updateCount << 
                 ", \"energy\":" << energy << 
                 ", \"particles\": [\n";
@@ -460,6 +468,128 @@ namespace Electrons
             }
             return list;
         }
+        
+#define AppendChar(s,i,c)  do{if(i < MAXSTRING) {s[i++] = c; s[i] = '\0';} else throw "String is too long in input file.";}while(false)
+
+        void JsonLoad(const char *inFileName)
+        {
+            using namespace std;
+            
+            // WARNING: This is not a real JSON parser. It is a hack that takes advantage
+            // of the format we know we write to JSON files.
+            // If you need this program to load JSON that you create, try to follow the format
+            // that this program outputs as closely as possible.
+            // Strategy: we only load the data we can't recalculate (counters and position vectors).
+            // We recalculate energy and force vectors using the position vectors.
+            
+            ifstream infile(inFileName);
+            if (!infile)
+            {
+                throw "Cannot open input file.";
+            }
+            
+            particles.clear();
+            frameCount = 0;
+            updateCount = 0;
+            
+            // Here is the hack: always remember the last 2 strings surrounded by double quotes.
+            // Then look for all sequences of digits, minus signs, or periods.
+            // We can determine what each number means by looking at the last 1 or 2 strings.
+
+            const int MAXSTRING = 40;
+            char key[1 + MAXSTRING];
+            char numeric[1 + MAXSTRING];
+            key[0] = numeric[0] = '\0';
+            int k = 0;   // index into key
+            int n = 0;   // index into numeric
+            char c;
+            enum {SEARCH, KEY, NUMBER} state = SEARCH;
+            bool inPositionVector = false;
+            Vector vec;
+
+            while ((infile >> c).good())
+            {
+                switch (state)
+                {
+                    case SEARCH:
+                        if ((c >= '0' && c <= '9') || c=='-')
+                        {
+                            state = NUMBER;
+                            n = 0;
+                            AppendChar(numeric, n, c);
+                        }
+                        else if (c == '"')
+                        {
+                            state = KEY;
+                            k = 0;
+                        }
+                        break;
+
+                    case KEY:
+                        if (c == '"')
+                        {
+                            state = SEARCH;
+                            if (!strcmp(key, "position"))
+                            {
+                                inPositionVector = true;
+                            }
+                            else if (key[0]<'x' || key[0]>'z' || key[1])
+                            {
+                                if (inPositionVector)
+                                {
+                                    inPositionVector = false;
+                                    particles.push_back(Particle(vec));
+                                    vec.Reset();
+                                }
+                            }
+                        }
+                        else
+                        {
+                            AppendChar(key, k, c);
+                        }
+                        break;
+
+                    case NUMBER:
+                        if ((c >= '0' && c <= '9') || c=='-' || c=='+' || c=='e' || c=='E' || c=='.')
+                        {
+                            AppendChar(numeric, n, c);
+                        }
+                        else
+                        {
+                            state = SEARCH;
+                            double value = atof(numeric);
+                            if (inPositionVector)
+                            {
+                                if (key[0] && !key[1])
+                                {
+                                    switch (key[0])
+                                    {
+                                        case 'x': vec.x = value; break;
+                                        case 'y': vec.y = value; break;
+                                        case 'z': vec.z = value; break;
+                                    }
+                                }
+                            }
+                            else if (!strcmp(key, "frame"))
+                            {
+                                frameCount = atoi(numeric);
+                            }
+                            else if (!strcmp(key, "update") || !strcmp(key, "loop"))
+                            {
+                                updateCount = atoi(numeric);
+                            }
+                        }
+                        break;
+
+                    default:
+                        throw "Unknown state trying to load JSON";
+                }
+            } 
+            
+            energy = CalcTangentialForces(particles);
+        }
+
+#undef AppendChar
     };
 }
 
@@ -540,6 +670,16 @@ int main(int argc, const char *argv[])
                 int n = ScanNumParticles(argv[2]);
                 const char *outFileName = argv[3];
                 Simulation sim(n);
+                Save(sim, outFileName);
+                return 0;
+            }
+
+            if (!strcmp(verb, "copy") && (argc == 4))
+            {
+                // Test the JSON loader.
+                const char *inFileName = argv[2];
+                const char *outFileName = argv[3];
+                Simulation sim(inFileName);
                 Save(sim, outFileName);
                 return 0;
             }
