@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Remove trailing whitespace from C++ code.
+sed -i 's/[ ]*$//' fastsim.cpp
+
 # I used to use --std=c++11, but that doesn't work on Raspberry Pi
 # because it uses an older version (4.6) of the compiler.
 # As far as I can tell, c++0x builds the code the same way as c++11.
