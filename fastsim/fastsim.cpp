@@ -620,6 +620,10 @@ void PrintUsage()
         "fastsim copy infile.json outfile.json\n"
         "    Loads simulation from infile, then writes to outfile.\n"
         "    Not much practical value; used as a unit test of the loader.\n"
+        "\n"
+        "fastsim compare a.json b.json\n"
+        "    Compares the two simulations to see if they have the same\n"
+        "    relative configuration of particle positions, within tolerance.\n"
         "\n";
 }
 
@@ -649,17 +653,23 @@ void Save(Electrons::Simulation& sim, const char *outFileName)
 
 //======================================================================================
 
-inline bool Different(double x, double y, const char *label, double tolerance = 1.0e-6)
+inline bool Different(double x, double y, const char *label, double tolerance)
 {
     using namespace std;
 
     double diff = fabs(x - y);
     if (diff >= tolerance)
     {
-        cout << "Different " << label << ": x=" << x << ", y=" << y << ", diff=" << diff << ", tolerance=" << tolerance << endl;
-        return false;
+        cout << setprecision(12) <<
+            "Different " << label << 
+            ": x=" << x << 
+            ", y=" << y << 
+            ", diff=" << diff << 
+            ", tolerance=" << tolerance << endl;
+            
+        return true;
     }
-    return true;
+    return false;
 }
 
 bool Compare(Electrons::Simulation& asim, Electrons::Simulation& bsim)
@@ -672,8 +682,11 @@ bool Compare(Electrons::Simulation& asim, Electrons::Simulation& bsim)
         cout << "Simulations have different particle counts." << endl;
         return false;
     }
+    
+    const double tolerance = 1.0e-7;
+    const int pairs = (n * (n-1)) / 2;
 
-    if (Different(asim.PotentialEnergy(), bsim.PotentialEnergy(), "potential energies"))
+    if (Different(asim.PotentialEnergy(), bsim.PotentialEnergy(), "potential energies", pairs*tolerance))
     {
         return false;
     }
