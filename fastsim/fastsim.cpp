@@ -210,13 +210,21 @@ namespace Electrons
         int     aIndex;
         int     bIndex;
         double  distance;
+        int     group;
         
         Pair(int _aIndex, int _bIndex, double _distance)
             : aIndex(_aIndex)
             , bIndex(_bIndex)
             , distance(_distance)
-        {
-        }
+            , group(0)
+            {}
+        
+        Pair(const Pair& other, int _group)
+            : aIndex(other.aIndex)
+            , bIndex(other.bIndex)
+            , distance(other.distance)
+            , group(_group)
+            {}
         
         void Print(std::ostream& output) const
         {
@@ -225,6 +233,7 @@ namespace Electrons
                 setw(5) << aIndex << 
                 setw(5) << bIndex << 
                 setw(12) << fixed << setprecision(5) << distance << 
+                setw(5) << group <<
                 endl;
         }
     };
@@ -244,6 +253,79 @@ namespace Electrons
             p.Print(output);
         }
     }
+    
+    struct GroupPattern
+    {
+        PairList pattern;
+        std::vector<int> groups;    // groups[particleIndex] = groupNumber
+        
+        GroupPattern(const PairList& spectrum)
+        {
+            // Find total number of particles in the spectrum by scanning the particle indices in it.
+            int n = 0;
+            for (const Pair& p : spectrum)
+            {
+                if (p.aIndex >= n)
+                {
+                    n = 1 + p.aIndex;
+                }
+                if (p.bIndex >= n)
+                {
+                    n = 1 + p.bIndex;
+                }
+            }
+            
+            // Initialize each particle's group to 0, meaning "no group".
+            groups.reserve(static_cast<std::vector<int>::size_type>(n));            
+            for (int i=0; i < n; ++i)
+            {
+                groups.push_back(0);
+            }
+            
+            // Break the spectrum into bands of approximately equal pair distances.
+            // Once a particle has been assigned to a group, exclude it from any later groups.
+            // This is the same idea used for drawing the pattern lines in the web version.
+            
+            const double tolerance = 0.001;
+            int g = 1;
+            int groupCount = 0;
+            double prevDistance = -1.0;
+            for (const Pair& p : spectrum)
+            {
+                if (p.distance - prevDistance > tolerance)
+                {
+                    if (groupCount > 0)     // don't "waste" group numbers on empty groups
+                    {
+                        ++g;                // starting a new group number
+                        groupCount = 0;     // we have not found any pairs in this group yet
+                    }
+                    prevDistance = p.distance;
+                }
+                
+                if ((groups[p.aIndex]==0 || groups[p.aIndex]==g) && (groups[p.bIndex]==0 || groups[p.bIndex]==g))
+                {
+                    groups[p.aIndex] = groups[p.bIndex] = g;                    
+                    pattern.push_back(Pair(p, g));
+                    ++groupCount;
+                }
+            }
+        }
+        
+        void Print(std::ostream& output)
+        {
+            using namespace std;
+            
+            Electrons::Print(output, pattern);
+            
+            output << "Groups " << groups.size() << endl;
+            int i = 0;
+            for (int g : groups)
+            {
+                output << setw(5) << i << setw(5) << g << endl;
+                ++i;
+            }
+        }
+    };
     
     // Simulation ---------------------------------------------------------------
 
@@ -833,7 +915,9 @@ int main(int argc, const char *argv[])
                 const char *inFileName = argv[2];
                 Simulation sim(inFileName);
                 PairList spectrum = sim.Spectrum();
-                Print(cout, spectrum);
+                //Print(cout, spectrum);
+                GroupPattern gp(spectrum);
+                gp.Print(cout);
                 return 0;
             }
         }
