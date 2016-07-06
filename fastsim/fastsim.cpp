@@ -15,6 +15,7 @@
 #include <cmath>
 #include <cstring>
 #include <string>
+#include <algorithm>
 
 namespace Electrons
 {
@@ -201,6 +202,63 @@ namespace Electrons
             }
         }
     }
+    
+    // DistanceSpectrum ---------------------------------------------------------
+    
+    struct Pair
+    {
+        int     aIndex;
+        int     bIndex;
+        double  distance;
+        
+        Pair(int _aIndex, int _bIndex, double _distance)
+            : aIndex(_aIndex)
+            , bIndex(_bIndex)
+            , distance(_distance)
+        {
+        }
+        
+        void Print(std::ostream& output) const
+        {
+            using namespace std;
+            output << 
+                setw(5) << aIndex << 
+                setw(5) << bIndex << 
+                setw(12) << fixed << setprecision(5) << distance << 
+                endl;
+        }
+    };
+    
+    bool operator < (const Pair& a, const Pair& b)      // needed for sorting
+    {
+        return a.distance < b.distance;
+    }
+    
+    typedef std::vector<Pair> PairList;
+    
+    class DistanceSpectrum
+    {
+    private:
+        PairList pairs;
+    
+    public:
+        DistanceSpectrum(PairList&& origin)
+            : pairs(origin)
+        {
+        }
+    
+        void Print(std::ostream& output)
+        {
+            using namespace std;
+            
+            output << "DistanceSpectrum(" << pairs.size() << "):" << endl;
+            for (const Pair& p : pairs)
+            {
+                p.Print(output);
+            }
+            output << endl;
+        }
+    };
 
     // Simulation ---------------------------------------------------------------
 
@@ -332,6 +390,27 @@ namespace Electrons
                 energy = nextenergy;
                 ++frameCount;
             }
+        }
+        
+        DistanceSpectrum Spectrum() const
+        {
+            // Generate the raw list of pair data (aIndex, bIndex, distance).
+            PairList pairs;
+            ParticleList::size_type numParticles = particles.size();
+            pairs.reserve((numParticles * (numParticles-1)) / 2);
+            for (ParticleList::size_type i=0; i < numParticles-1; ++i)
+            {
+                for (ParticleList::size_type j=i+1; j < numParticles; ++j)
+                {
+                    double distance = (particles[i].position - particles[j].position).Mag();
+                    pairs.push_back(Pair(i, j, distance));
+                }
+            }
+
+            // Sort the list of pairs in ascending order of distance.
+            std::sort(pairs.begin(), pairs.end());
+            
+            return DistanceSpectrum(std::move(pairs));
         }
         
     private:
@@ -624,6 +703,11 @@ void PrintUsage()
         "fastsim compare a.json b.json\n"
         "    Compares the two simulations to see if they have the same\n"
         "    relative configuration of particle positions, within tolerance.\n"
+        "\n"
+        "fastsim spectrum infile.json\n"
+        "    Calculates the distance spectrum of the given simulation,\n"
+        "    defined as the list of all distances between pairs of\n"
+        "    particles, sorted in ascending order.\n"
         "\n";
 }
 
@@ -757,6 +841,15 @@ int main(int argc, const char *argv[])
                     return 0;
                 }
                 return 9;   // special return value that scripts can use to find a surprising convergence!
+            }
+            
+            if (!strcmp(verb, "spectrum") && (argc == 3))
+            {
+                const char *inFileName = argv[2];
+                Simulation sim(inFileName);
+                DistanceSpectrum spectrum = sim.Spectrum();
+                spectrum.Print(cout);
+                return 0;
             }
         }
     
