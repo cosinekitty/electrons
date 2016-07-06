@@ -203,7 +203,7 @@ namespace Electrons
         }
     }
     
-    // DistanceSpectrum ---------------------------------------------------------
+    // Distance Spectrum ---------------------------------------------------------
     
     struct Pair
     {
@@ -236,30 +236,15 @@ namespace Electrons
     
     typedef std::vector<Pair> PairList;
     
-    class DistanceSpectrum
+    void Print(std::ostream& output, const PairList& pairs)
     {
-    private:
-        PairList pairs;
-    
-    public:
-        DistanceSpectrum(PairList&& origin)
-            : pairs(origin)
+        output << "DistanceSpectrum " << pairs.size() << std::endl;
+        for (const Pair& p : pairs)
         {
+            p.Print(output);
         }
+    }
     
-        void Print(std::ostream& output)
-        {
-            using namespace std;
-            
-            output << "DistanceSpectrum(" << pairs.size() << "):" << endl;
-            for (const Pair& p : pairs)
-            {
-                p.Print(output);
-            }
-            output << endl;
-        }
-    };
-
     // Simulation ---------------------------------------------------------------
 
     class Simulation
@@ -392,7 +377,7 @@ namespace Electrons
             }
         }
         
-        DistanceSpectrum Spectrum() const
+        PairList Spectrum() const
         {
             // Generate the raw list of pair data (aIndex, bIndex, distance).
             PairList pairs;
@@ -410,7 +395,7 @@ namespace Electrons
             // Sort the list of pairs in ascending order of distance.
             std::sort(pairs.begin(), pairs.end());
             
-            return DistanceSpectrum(std::move(pairs));
+            return pairs;
         }
         
     private:
@@ -847,8 +832,8 @@ int main(int argc, const char *argv[])
             {
                 const char *inFileName = argv[2];
                 Simulation sim(inFileName);
-                DistanceSpectrum spectrum = sim.Spectrum();
-                spectrum.Print(cout);
+                PairList spectrum = sim.Spectrum();
+                Print(cout, spectrum);
                 return 0;
             }
         }
