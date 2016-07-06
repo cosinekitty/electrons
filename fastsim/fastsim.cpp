@@ -1,6 +1,6 @@
 /*
     fastsim.cpp  -  Don Cross  -  1 July 2016.
-    
+
     A simulation of mutually repulsive particles trapped on the surface of a sphere.
     This is also known as the Thompson Problem.
     See:  https://en.wikipedia.org/wiki/Thomson_problem
@@ -26,27 +26,27 @@ namespace Electrons
         double  x;
         double  y;
         double  z;
-        
+
         Vector(): x(0), y(0), z(0) {}
         Vector(double _x, double _y, double _z): x(_x), y(_y), z(_z) {}
-        
+
         void Reset()
         {
             x = 0;
             y = 0;
             z = 0;
         }
-        
-        double MagSquared() const 
+
+        double MagSquared() const
         {
             return (x*x) + (y*y) + (z*z);
         }
-        
+
         double Mag() const
         {
             return sqrt(MagSquared());
         }
-        
+
         Vector UnitVector() const
         {
             double r = Mag();
@@ -56,7 +56,7 @@ namespace Electrons
             }
             return Vector(x/r, y/r, z/r);
         }
-        
+
         Vector& operator += (const Vector& other)
         {
             x += other.x;
@@ -64,7 +64,7 @@ namespace Electrons
             z += other.z;
             return *this;
         }
-        
+
         Vector& operator -= (const Vector& other)
         {
             x -= other.x;
@@ -72,45 +72,45 @@ namespace Electrons
             z -= other.z;
             return *this;
         }
-        
+
         static double Dot(const Vector& a, const Vector& b)
         {
             return (a.x*b.x) + (a.y*b.y) + (a.z*b.z);
         }
     };
-    
+
     typedef std::vector<Vector> VectorList;
-    
+
     inline Vector operator + (const Vector& a, const Vector& b)
     {
         return Vector(a.x + b.x, a.y + b.y, a.z + b.z);
     }
-    
+
     inline Vector operator - (const Vector& a, const Vector& b)
     {
         return Vector(a.x - b.x, a.y - b.y, a.z - b.z);
     }
-    
+
     inline Vector operator * (double s, const Vector& v)
     {
         return Vector(s*v.x, s*v.y, s*v.z);
     }
-    
+
     // Particle ---------------------------------------------------------------
-    
+
     struct Particle
     {
         Vector position;
         Vector force;
-        
+
         Particle(): position(), force() {}
         Particle(const Vector& _position): position(_position.UnitVector()), force() {}
     };
-    
+
     typedef std::vector<Particle> ParticleList;
 
     // JSON output ------------------------------------------------------------
-    
+
     void Print(std::ostream& output, double t)
     {
         using namespace std;
@@ -118,7 +118,7 @@ namespace Electrons
         if (t >= 0.0) output << " ";
         output << t;
     }
-    
+
     void JsonIndent(std::ostream& output, int indent)
     {
         int spaces = 4*indent;
@@ -127,18 +127,18 @@ namespace Electrons
             output << " ";
         }
     }
-    
+
     void JsonPrint(std::ostream& output, const Vector& v)
     {
-        output << "{\"x\":"; 
-        Print(output, v.x); 
-        output << ", \"y\":"; 
+        output << "{\"x\":";
+        Print(output, v.x);
+        output << ", \"y\":";
         Print(output, v.y);
         output << ", \"z\":";
         Print(output, v.z);
         output << "}";
     }
-    
+
     void JsonPrint(std::ostream& output, const Particle& p)
     {
         output << "{\"position\":";
@@ -147,14 +147,14 @@ namespace Electrons
         JsonPrint(output, p.force);
         output << "}";
     }
-    
+
     void JsonPrint(std::ostream& output, const VectorList& list, int indent)
     {
         using namespace std;
         JsonIndent(output, indent);
         output << "[\n";
         bool first = true;
-        for (const Vector& v : list) 
+        for (const Vector& v : list)
         {
             JsonIndent(output, indent);
             output << (first ? "    " : ",   ");
@@ -165,27 +165,27 @@ namespace Electrons
         JsonIndent(output, indent);
         output << "]\n";
     }
-    
+
     // Random generators ------------------------------------------------------------
-    
+
     double Random(std::ifstream& infile)
     {
         using namespace std;
-        
+
         uint64_t data;
         infile.read((char *)&data, sizeof(data));
         if (!infile) throw "Read failure generating random number.";
-        
+
         // Convert the 64-bit integer to double-precision floating point.
         // Divide by maximum possible value to get a number in the closed range [0, +1].
         double x = static_cast<double>(data) / static_cast<double>(UINT64_MAX);
-        
-        // Convert to the closed range [-1, +1].        
+
+        // Convert to the closed range [-1, +1].
         return 1.0 - (2.0 * x);
     }
 
     Vector RandomSpherePoint(std::ifstream& infile)
-    {    
+    {
         // Algorithm for picking a random point on a sphere.
         // Avoids any clustering of points.
         // See equations (9), (10), (11) in:
@@ -202,49 +202,49 @@ namespace Electrons
             }
         }
     }
-    
+
     // Distance Spectrum ---------------------------------------------------------
-    
+
     struct Pair
     {
         int     aIndex;
         int     bIndex;
         double  distance;
         int     group;
-        
+
         Pair(int _aIndex, int _bIndex, double _distance)
             : aIndex(_aIndex)
             , bIndex(_bIndex)
             , distance(_distance)
             , group(0)
             {}
-        
+
         Pair(const Pair& other, int _group)
             : aIndex(other.aIndex)
             , bIndex(other.bIndex)
             , distance(other.distance)
             , group(_group)
             {}
-        
+
         void Print(std::ostream& output) const
         {
             using namespace std;
-            output << 
-                setw(5) << aIndex << 
-                setw(5) << bIndex << 
-                setw(12) << fixed << setprecision(5) << distance << 
+            output <<
+                setw(5) << aIndex <<
+                setw(5) << bIndex <<
+                setw(12) << fixed << setprecision(5) << distance <<
                 setw(5) << group <<
                 endl;
         }
     };
-    
+
     bool operator < (const Pair& a, const Pair& b)      // needed for sorting
     {
         return a.distance < b.distance;
     }
-    
+
     typedef std::vector<Pair> PairList;
-    
+
     void Print(std::ostream& output, const PairList& pairs)
     {
         output << "DistanceSpectrum " << pairs.size() << std::endl;
@@ -253,12 +253,12 @@ namespace Electrons
             p.Print(output);
         }
     }
-    
+
     struct GroupPattern
     {
         PairList pattern;
         std::vector<int> groups;    // groups[particleIndex] = groupNumber
-        
+
         GroupPattern(const PairList& spectrum)
         {
             // Find total number of particles in the spectrum by scanning the particle indices in it.
@@ -274,18 +274,18 @@ namespace Electrons
                     n = 1 + p.bIndex;
                 }
             }
-            
+
             // Initialize each particle's group to 0, meaning "no group".
-            groups.reserve(static_cast<std::vector<int>::size_type>(n));            
+            groups.reserve(static_cast<std::vector<int>::size_type>(n));
             for (int i=0; i < n; ++i)
             {
                 groups.push_back(0);
             }
-            
+
             // Break the spectrum into bands of approximately equal pair distances.
             // Once a particle has been assigned to a group, exclude it from any later groups.
             // This is the same idea used for drawing the pattern lines in the web version.
-            
+
             const double tolerance = 0.001;
             int g = 1;
             int groupCount = 0;
@@ -301,22 +301,22 @@ namespace Electrons
                     }
                     prevDistance = p.distance;
                 }
-                
+
                 if ((groups[p.aIndex]==0 || groups[p.aIndex]==g) && (groups[p.bIndex]==0 || groups[p.bIndex]==g))
                 {
-                    groups[p.aIndex] = groups[p.bIndex] = g;                    
+                    groups[p.aIndex] = groups[p.bIndex] = g;
                     pattern.push_back(Pair(p, g));
                     ++groupCount;
                 }
             }
         }
-        
+
         void Print(std::ostream& output)
         {
             using namespace std;
-            
+
             Electrons::Print(output, pattern);
-            
+
             output << "Groups " << groups.size() << endl;
             int i = 0;
             for (int g : groups)
@@ -326,7 +326,7 @@ namespace Electrons
             }
         }
     };
-    
+
     // Simulation ---------------------------------------------------------------
 
     class Simulation
@@ -336,37 +336,37 @@ namespace Electrons
         int frameCount;
         int updateCount;
         double energy;
-    
+
     public:
         static const int MinParticles = 2;
         static const int MaxParticles = 1000;
-        
+
         Simulation(int numPoints)       // create an initial random state
             : frameCount(0)
             , updateCount(0)
         {
             using namespace std;
-            
+
             if ((numPoints < MinParticles) || (numPoints > MaxParticles))
             {
-                throw "Invalid number of particles.";        
+                throw "Invalid number of particles.";
             }
-                
+
             ifstream infile("/dev/urandom", ios::in | ios::binary);
-            if (!infile) 
+            if (!infile)
             {
                 throw "Could not open /dev/urandom to obtain random numbers.";
             }
-                
+
             particles.reserve(static_cast<ParticleList::size_type>(numPoints));
             for (int i=0; i < numPoints; ++i)
             {
                 particles.push_back(Particle(RandomSpherePoint(infile)));
             }
-            
+
             energy = CalcTangentialForces(particles);
         }
-        
+
         Simulation(const char *inJsonFile)
             : frameCount(0)
             , updateCount(0)
@@ -374,40 +374,40 @@ namespace Electrons
         {
             JsonLoad(inJsonFile);
         }
-        
+
         int ParticleCount() const
         {
             return static_cast<int>(particles.size());
         }
-        
+
         int FrameCount() const
         {
             return frameCount;
         }
-        
+
         int UpdateCount() const
         {
             return updateCount;
         }
-        
+
         double PotentialEnergy() const
         {
             return energy;
         }
-        
+
         void JsonPrint(std::ostream& output, int indent) const
         {
             using namespace std;
-            
+
             JsonIndent(output, indent);
             output << setprecision(12) <<
-                "{\"frame\":" << frameCount << 
-                ", \"update\":" << updateCount << 
-                ", \"energy\":" << energy << 
+                "{\"frame\":" << frameCount <<
+                ", \"update\":" << updateCount <<
+                ", \"energy\":" << energy <<
                 ", \"particles\": [\n";
-                
+
             bool first = true;
-            for (const Particle& p : particles) 
+            for (const Particle& p : particles)
             {
                 JsonIndent(output, indent);
                 output << (first ? "    " : ",   ");
@@ -415,30 +415,30 @@ namespace Electrons
                 output << "\n";
                 first = false;
             }
-            
+
             JsonIndent(output, indent);
             output << "]}\n";
         }
-        
+
         bool Converge()
         {
             using namespace std;
-            
+
             // Create auxiliary particle lists to hold candidate next frames.
             ParticleList nextlist = CreateParticleList();
             ParticleList bestlist = CreateParticleList();
 
             // The potential energy and tangential forces have already been calculated
             // for the current configuration.  See constructor.
-                        
+
             while (true)    // frame loop: each iteration updates the particles' positions
-            {                
+            {
                 // Search for dt value that decreases potential energy as much as possible.
                 // This is a balance between searching as few dt values as possible
                 // and homing in on as good value as possible.
                 // Calculate reasonable upper bound for dt.
                 double dt = DeltaTimeUpperLimit();
-                
+
                 // Use dtAttempt to simulate a possible frame.
                 double nextenergy = Update(particles, nextlist, dt);
                 while (nextenergy >= energy)
@@ -452,13 +452,13 @@ namespace Electrons
                     dt *= 0.5;      // shrink dt and try adjusting the particle locations again
                     nextenergy = Update(particles, nextlist, dt);
                 }
-                
+
                 swap(particles, nextlist);
                 energy = nextenergy;
                 ++frameCount;
             }
         }
-        
+
         PairList Spectrum() const
         {
             // Generate the raw list of pair data (aIndex, bIndex, distance).
@@ -476,10 +476,10 @@ namespace Electrons
 
             // Sort the list of pairs in ascending order of distance.
             std::sort(pairs.begin(), pairs.end());
-            
+
             return pairs;
         }
-        
+
     private:
         double Update(ParticleList& currlist, ParticleList& nextlist, double dt)
         {
@@ -487,7 +487,7 @@ namespace Electrons
             UpdatePositions(currlist, nextlist, dt);
             return CalcTangentialForces(nextlist);      // returns updated potential energy of particles in 'nextlist'
         }
-    
+
         double DeltaTimeUpperLimit() const
         {
             // Goal: find a reasonable upper bound for simulation increment dt.
@@ -495,17 +495,17 @@ namespace Electrons
             // pair of particles (ignoring all other particles) to increase their
             // distance from each other by no more than their current distance times alpha.
             const double alpha = 0.5;
-            
+
             // Find the minimum distance between any pair of particles.
             double r = MinimumPairDistance(particles);
-            
+
             // dr = 2*dt/(r^2), because both particles move by dt/(r^2).
             // dr = alpha*r.
             // Therefore, dt = (alpha/2)*r^3.
-            
+
             return (alpha/2.0) * (r*r*r);
         }
-        
+
         static double MinimumPairDistance(const ParticleList& particles)
         {
             const ParticleList::size_type numParticles = particles.size();
@@ -513,7 +513,7 @@ namespace Electrons
             {
                 throw "There must be at least 2 particles to find a minimum pair distance.";
             }
-            
+
             double minDistanceSquared = 5.0;  // particles can never be more than 2 units apart, and 2^2 = 4.
             for (ParticleList::size_type i=0; i < numParticles-1; ++i)
             {
@@ -526,15 +526,15 @@ namespace Electrons
                     }
                 }
             }
-            
+
             if (minDistanceSquared > 4.000000001)       // allow ample room for roundoff error in the n=2 case
             {
                 throw "Impossible minimum distance between particles!";
             }
-            
+
             return sqrt(minDistanceSquared);
         }
-    
+
         static double CalcTangentialForces(ParticleList& particles)
         {
             // Reset each particle's force to a zero vector.
@@ -542,7 +542,7 @@ namespace Electrons
             {
                 p.force.Reset();
             }
-            
+
             // Compute force between each unique pair of particles
             // and total potential energy of the system.
             double energy = 0.0;
@@ -554,9 +554,9 @@ namespace Electrons
                     energy += AddForces(particles[i], particles[j]);
                 }
             }
-            
+
             // The particles can only move along the surface of the sphere,
-            // so eliminate the radial component of all forces, 
+            // so eliminate the radial component of all forces,
             // leaving tangential forces.
             for (Particle& p : particles)
             {
@@ -564,10 +564,10 @@ namespace Electrons
                 // to get tangential component.
                 p.force -= Vector::Dot(p.force, p.position) * p.position;
             }
-            
+
             return energy;
         }
-        
+
         static void UpdatePositions(ParticleList& inlist, ParticleList& outlist, double dt)
         {
             const ParticleList::size_type numParticles = inlist.size();
@@ -575,16 +575,16 @@ namespace Electrons
             {
                 throw "Inconsistent particle list sizes.";
             }
-            
+
             for (ParticleList::size_type i=0; i < numParticles; ++i)
             {
                 Particle& p = inlist[i];
-                Particle& q = outlist[i];                
+                Particle& q = outlist[i];
                 q.position = ((dt * p.force) + p.position).UnitVector();
                 // IMPORTANT: q.force is left whatever random garbage was there before - NOT VALID VALUES!
             }
         }
-        
+
         static double AddForces(Particle& a, Particle& b)
         {
             // Force of electrically charged particles:
@@ -596,12 +596,12 @@ namespace Electrons
             Vector force = forcemag * dp.UnitVector();
             a.force += force;
             b.force -= force;
-            
+
             // Calculate potential energy of this pair and return it.
             // Potential energy is proportional to 1/r = sqrt(1/r^2).
             return sqrt(forcemag);
         }
-        
+
         ParticleList CreateParticleList()
         {
             const ParticleList::size_type n = particles.size();
@@ -613,7 +613,7 @@ namespace Electrons
             }
             return list;
         }
-        
+
         static const int MAXSTRING = 40;
 
         void AppendChar(char *string, int& index, char c)
@@ -632,24 +632,24 @@ namespace Electrons
         void JsonLoad(const char *inFileName)
         {
             using namespace std;
-            
+
             // WARNING: This is not a real JSON parser. It is a hack that takes advantage
             // of the format we know we write to JSON files.
             // If you need this program to load JSON that you create, try to follow the format
             // that this program outputs as closely as possible.
             // Strategy: we only load the data we can't recalculate (counters and position vectors).
             // We recalculate energy and force vectors using the position vectors.
-            
+
             ifstream infile(inFileName);
             if (!infile)
             {
                 throw "Cannot open input file.";
             }
-            
+
             particles.clear();
             frameCount = 0;
             updateCount = 0;
-            
+
             // Here is the hack: always remember the last 2 strings surrounded by double quotes.
             // Then look for all sequences of digits, minus signs, or periods.
             // We can determine what each number means by looking at the last 1 or 2 strings.
@@ -741,15 +741,15 @@ namespace Electrons
                     default:
                         throw "Unknown state trying to load JSON";
                 }
-            } 
-            
+            }
+
             energy = CalcTangentialForces(particles);
         }
     };
 }
 
 //======================================================================================
-    
+
 void PrintUsage()
 {
     std::cout <<
@@ -812,12 +812,12 @@ inline bool Different(double x, double y, const char *label, double tolerance)
     if (diff >= tolerance)
     {
         cout << setprecision(12) <<
-            "Different " << label << 
-            ": x=" << x << 
-            ", y=" << y << 
-            ", diff=" << diff << 
+            "Different " << label <<
+            ": x=" << x <<
+            ", y=" << y <<
+            ", diff=" << diff <<
             ", tolerance=" << tolerance << endl;
-            
+
         return true;
     }
     return false;
@@ -833,7 +833,7 @@ bool Compare(Electrons::Simulation& asim, Electrons::Simulation& bsim)
         cout << "Simulations have different particle counts." << endl;
         return false;
     }
-    
+
     const double tolerance = 1.0e-7;
     const int pairs = (n * (n-1)) / 2;
 
@@ -852,12 +852,12 @@ int main(int argc, const char *argv[])
 {
     using namespace std;
     using namespace Electrons;
-    try 
+    try
     {
         if (argc > 1)
         {
             const char *verb = argv[1];
-            
+
             if (!strcmp(verb, "converge") && (argc >= 3) && (argc <= 4))
             {
                 int n = ScanNumParticles(argv[2]);
@@ -876,7 +876,7 @@ int main(int argc, const char *argv[])
                 cout << "FAILED TO CONVERGE!" << endl;
                 return 1;
             }
-            
+
             if (!strcmp(verb, "random") && (argc == 4))
             {
                 int n = ScanNumParticles(argv[2]);
@@ -909,7 +909,7 @@ int main(int argc, const char *argv[])
                 }
                 return 9;   // special return value that scripts can use to find a surprising convergence!
             }
-            
+
             if (!strcmp(verb, "spectrum") && (argc == 3))
             {
                 const char *inFileName = argv[2];
@@ -921,7 +921,7 @@ int main(int argc, const char *argv[])
                 return 0;
             }
         }
-    
+
         PrintUsage();
         return 2;
     }
