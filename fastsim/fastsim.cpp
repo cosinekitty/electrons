@@ -259,7 +259,7 @@ namespace Electrons
         PairList pattern;
         std::vector<int> groups;    // groups[particleIndex] = groupNumber
 
-        GroupPattern(const PairList& spectrum)
+        GroupPattern(const PairList& spectrum, double tolerance)
         {
             // Find total number of particles in the spectrum by scanning the particle indices in it.
             int n = 0;
@@ -286,7 +286,6 @@ namespace Electrons
             // Once a particle has been assigned to a group, exclude it from any later groups.
             // This is the same idea used for drawing the pattern lines in the web version.
 
-            const double tolerance = 0.001;
             int g = 1;
             int groupCount = 0;
             double prevDistance = -1.0;
@@ -771,10 +770,12 @@ void PrintUsage()
         "    Compares the two simulations to see if they have the same\n"
         "    relative configuration of particle positions, within tolerance.\n"
         "\n"
-        "fastsim spectrum infile.json\n"
+        "fastsim spectrum infile.json tolerance\n"
         "    Calculates the distance spectrum of the given simulation,\n"
         "    defined as the list of all distances between pairs of\n"
         "    particles, sorted in ascending order.\n"
+        "    Tolerance is a positive real number (e.g. 0.001) specifying\n"
+        "    how much distance error to tolerate when grouping the particles.\n"
         "\n";
 }
 
@@ -910,13 +911,18 @@ int main(int argc, const char *argv[])
                 return 9;   // special return value that scripts can use to find a surprising convergence!
             }
 
-            if (!strcmp(verb, "spectrum") && (argc == 3))
+            if (!strcmp(verb, "spectrum") && (argc == 4))
             {
                 const char *inFileName = argv[2];
+                double tolerance = atof(argv[3]);
+                if (tolerance <= 0.0)
+                {
+                    throw "Tolerance must be a positive real number.";
+                }
                 Simulation sim(inFileName);
                 PairList spectrum = sim.Spectrum();
                 //Print(cout, spectrum);
-                GroupPattern gp(spectrum);
+                GroupPattern gp(spectrum, tolerance);
                 gp.Print(cout);
                 return 0;
             }
