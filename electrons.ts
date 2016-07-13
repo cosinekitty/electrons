@@ -382,7 +382,7 @@ module Electrons {
                 }
 
                 // Connect all pairs of particles whose distance is not much larger than the minimum.
-                let threshold:number = 1.01 * minDistance;
+                let threshold:number = 1.005 * minDistance;
                 for (let i:number = 0; i < this.particleList.length - 1; ++i) {
                     if (!isConnectedIndex[i]) {
                         let ipos:Vector = this.particleList[i].GetPosition();

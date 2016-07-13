@@ -232,7 +232,7 @@ namespace Electrons
             output <<
                 setw(5) << aIndex <<
                 setw(5) << bIndex <<
-                setw(12) << fixed << setprecision(5) << distance <<
+                setw(14) << fixed << setprecision(10) << distance <<
                 setw(5) << group <<
                 endl;
         }
