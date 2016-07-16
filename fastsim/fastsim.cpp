@@ -521,6 +521,44 @@ namespace Electrons
 
         void Fix(int northPoleIndex, int eastLineIndex)
         {
+            double oldEnergy = energy;
+
+            // InternalFix does not update force vectors and potential energy.
+            // This makes Compare() much more efficient.
+            // But doing so is required to preserve the integrity for public callers.
+            InternalFix(northPoleIndex, eastLineIndex);
+
+            UpdateAfterRotation(oldEnergy);
+        }
+
+        static bool Compare(Simulation& asim, Simulation& bsim)
+        {
+            using namespace std;
+
+            const int n = asim.ParticleCount();
+            if (n != bsim.ParticleCount())
+            {
+                cout << "Simulations have different particle counts." << endl;
+                return false;
+            }
+
+            return true;
+        }
+
+    private:
+        void UpdateAfterRotation(double oldEnergy)
+        {
+            // Recalculate force vectors and potential energy for the new configuration.
+            // This is so we maintain the invariant of this class, but also serves as a sanity check.
+            energy = CalcTangentialForces(particles);
+            if (fabs(energy - oldEnergy) > 1.0e-6)
+            {
+                throw "Potential energy should not have changed.";
+            }
+        }
+
+        void InternalFix(int northPoleIndex, int eastLineIndex)
+        {
             //
             // Rotate the sphere so that the two particles specified by index
             // are oriented in a "standard" way:
@@ -593,7 +631,7 @@ namespace Electrons
                 // Dump coordinates for diagnostics.
                 std::cout << "north=" << north << std::endl;
                 std::cout << "east =" << east  << std::endl;
-                throw "Postcondition failure in Simulation::Fix().";
+                throw "Vectors did not end up in correct locations.";
             }
         }
 
@@ -637,7 +675,6 @@ namespace Electrons
             }
         }
 
-    private:
         static bool NormalizeRotation(double& a, double& b)
         {
             double mag = sqrt(a*a + b*b);
@@ -1022,23 +1059,6 @@ void Save(Electrons::Simulation& sim, const char *outFileName)
 
 //======================================================================================
 
-bool Compare(Electrons::Simulation& asim, Electrons::Simulation& bsim)
-{
-    using namespace std;
-
-    const int n = asim.ParticleCount();
-    if (n != bsim.ParticleCount())
-    {
-        cout << "Simulations have different particle counts." << endl;
-        return false;
-    }
-
-    return true;
-}
-
-
-//======================================================================================
-
 int main(int argc, const char *argv[])
 {
     using namespace std;
@@ -1093,7 +1113,7 @@ int main(int argc, const char *argv[])
                 const char *bFileName = argv[3];
                 Simulation asim(aFileName);
                 Simulation bsim(bFileName);
-                if (Compare(asim, bsim))
+                if (Simulation::Compare(asim, bsim))
                 {
                     cout << "The simulations are equivalent." << endl;
                     return 0;
