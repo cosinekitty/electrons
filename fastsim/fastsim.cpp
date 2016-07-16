@@ -144,6 +144,12 @@ namespace Electrons
         output << "}";
     }
 
+    inline std::ostream& operator << (std::ostream& output, const Vector& v)
+    {
+        JsonPrint(output, v);
+        return output;
+    }
+
     void JsonPrint(std::ostream& output, const Particle& p)
     {
         output << "{\"position\":";
@@ -513,7 +519,131 @@ namespace Electrons
             }
         }
 
+        void Fix(int northPoleIndex, int eastLineIndex)
+        {
+            //
+            // Rotate the sphere so that the two particles specified by index
+            // are oriented in a "standard" way:
+            //
+            //      particle[northPoleIndex] will end up at (0, 0, 1).
+            //      particle[eastLineIndex]  will end up at (x, 0, z) where x >= 0.
+            //
+            // This method allows us to more easily compare two Simulations
+            // to see if they have the same relative configuration.
+            //
+
+            // Validate the particle indices.
+            const int n = ParticleCount();
+            if (n < 2)
+            {
+                throw "Simulation must have at least 2 particles.";
+            }
+
+            if (northPoleIndex<0 || northPoleIndex>=n)
+            {
+                throw "Invalid particle index to move to north pole.";
+            }
+
+            if (eastLineIndex<0 || eastLineIndex>=n)
+            {
+                throw "Invalid particle index to move to east line.";
+            }
+
+            if (northPoleIndex == eastLineIndex)
+            {
+                throw "Particle indices must be different.";
+            }
+
+            const double tolerance = 1.0e-6;
+
+            Vector& north = particles[northPoleIndex].position;
+            Vector& east = particles[eastLineIndex].position;
+
+            // One final sanity check: the position vectors must not lie on parallel lines
+            // if there are more than 2 particles.  Otherwise, there are an infinite
+            // number of ways to rotate the sphere, since they will both end up on the
+            // north pole, or one will end up on the north pole and the other on the south pole.
+            if (n > 2)
+            {
+                double dot = Vector::Dot(north, east);
+                if (fabs(dot) < tolerance)
+                {
+                    throw "Particles not allowed to lie on the same diameter line.";
+                }
+            }
+
+            // Rotate the sphere around the z-axis to make north.y = 0 and north.x >= 0.
+            RotateZ(+north.x, -north.y);
+
+            // Now rotate around the y-axis so that north.x = 0 and north.y = 0.
+            RotateY(+north.z, -north.x);
+
+            // Rotate again around the z-axis so that the east point has y=0, x>=0.
+            RotateZ(+east.x, -east.y);
+
+            // Sanity-check that we met our goals.
+            if (fabs(north.x) > tolerance || fabs(north.y) > tolerance || fabs(east.y) > tolerance)
+            {
+                // Dump coordinates for diagnostics.
+                std::cout << "north=" << north << std::endl;
+                std::cout << "east =" << east  << std::endl;
+                throw "Postcondition failure in Simulation::Fix().";
+            }
+        }
+
+        void RotateY(double a, double b)
+        {
+            if (NormalizeRotation(a, b))
+            {
+                for (Particle& p : particles)
+                {
+                    // [See explanation in RotateZ function.]
+                    // (a + ib)*(z + ix) = (a*z - b*x) + i(a*x + b*z)
+                    double z = a*p.position.z - b*p.position.x;
+                    p.position.x = a*p.position.x + b*p.position.z;
+                    p.position.z = z;
+                }
+            }
+        }
+
+        void RotateZ(double a, double b)
+        {
+            if (NormalizeRotation(a, b))
+            {
+                // We rotate around the z-axis by treating each point (x, y, z)
+                // as a complex number (x + iy), while leaving z constant.
+                // Then multiply (x + iy) by another complex number (a + ib) where
+                // a = cos(theta), y = sin(theta), theta = rotation angle.
+                // We avoid needing to use cos and sin function calls by noticing that
+                // cos(-theta) = x/mag, sin(-theta) = y/mag.
+                // The negative in (-theta) is because we want to rotate opposite to
+                // the (x, y) coordinates of the vector so that its x becomes 0.
+                // In other words, by multiplying (x + iy) by its complex conjugate (x - iy)
+                // dividing by its magnitude |x + iy|, we end up with |x + 0i|.
+                // All other points are treated the same way and end up rotated an equivalent amount.
+                for (Particle& p : particles)
+                {
+                    // (a + ib)*(x + iy) = (a*x - b*y) + i(a*y + b*x)
+                    double x = a*p.position.x - b*p.position.y;
+                    p.position.y = a*p.position.y + b*p.position.x;
+                    p.position.x = x;
+                }
+            }
+        }
+
     private:
+        static bool NormalizeRotation(double& a, double& b)
+        {
+            double mag = sqrt(a*a + b*b);
+            if (mag > 1.0e-6)
+            {
+                a /= mag;
+                b /= mag;
+                return true;
+            }
+            return false;
+        }
+
         void Render(
             std::vector<unsigned char>& rgbaBuffer,
             int pixelsWide,
@@ -851,6 +981,12 @@ void PrintUsage()
         "\n"
         "fastsim draw infile.json outfile.png\n"
         "    Make a png image of the given simulation.\n"
+        "\n"
+        "fastsim fix infile.json outfile.json north east\n"
+        "    Normalize the orientation of the simulation in infile.json\n"
+        "    such that the particle at index 'north' ends up at the\n"
+        "    north pole (0, 0, 1) and that for 'east' ends up on an\n"
+        "    easterly meridian (x >= 0, 0, z).\n"
         "\n";
 }
 
@@ -981,6 +1117,18 @@ int main(int argc, const char *argv[])
                 const char *outFileName = argv[3];
                 Simulation sim(inFileName);
                 sim.Draw(outFileName);
+                return 0;
+            }
+
+            if (!strcmp(verb, "fix") && (argc == 6))
+            {
+                const char *inFileName = argv[2];
+                const char *outFileName = argv[3];
+                int northPoleIndex = atoi(argv[4]);
+                int eastLineIndex = atoi(argv[5]);
+                Simulation sim(inFileName);
+                sim.Fix(northPoleIndex, eastLineIndex);
+                Save(sim, outFileName);
                 return 0;
             }
         }
