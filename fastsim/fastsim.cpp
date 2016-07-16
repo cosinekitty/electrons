@@ -565,9 +565,15 @@ namespace Electrons
             // north pole, or one will end up on the north pole and the other on the south pole.
             if (n > 2)
             {
-                double dot = Vector::Dot(north, east);
-                if (fabs(dot) < tolerance)
+                // If the two particles have position vectors that point in the same
+                // direction, or in exactly opposite directions, then their
+                // dot product will be (close to) +1 or -1, respectively.
+                double alignment = fabs(1.0 - fabs(Vector::Dot(north, east)));
+                if (alignment < tolerance)
                 {
+                    // Dump coordinates for diagnostics.
+                    std::cout << "north=" << north << std::endl;
+                    std::cout << "east =" << east  << std::endl;
                     throw "Particles not allowed to lie on the same diameter line.";
                 }
             }
