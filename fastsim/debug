@@ -1,2 +1,2 @@
 #!/bin/bash
-g++ -g -Wall --std=c++0x -o dfastsim fastsim.cpp && gdb -tui --args dfastsim $*
+g++ -g -Wall --std=c++0x -o dfastsim -I../../lodepng fastsim.cpp ../../lodepng/lodepng.cpp && gdb -tui --args dfastsim $*

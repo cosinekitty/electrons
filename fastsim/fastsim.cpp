@@ -107,9 +107,10 @@ namespace Electrons
     {
         Vector position;
         Vector force;
+        bool   visited;     // a utility flag
 
-        Particle(): position(), force() {}
-        Particle(const Vector& _position): position(_position.UnitVector()), force() {}
+        Particle(): position(), force(), visited(false) {}
+        Particle(const Vector& _position): position(_position.UnitVector()), force(), visited(false) {}
     };
 
     typedef std::vector<Particle> ParticleList;
@@ -335,6 +336,22 @@ namespace Electrons
                 ++i;
             }
         }
+
+        static bool Compatible(const PairList& a, const PairList& b, double tolerance)
+        {
+            int n = static_cast<int>(a.size());
+            if (static_cast<int>(b.size()) != n)
+                return false;
+
+            for (int i=0; i < n; ++i)
+            {
+                double error = fabs(a[i].distance - b[i].distance);
+                if (error > tolerance)
+                    return false;
+            }
+
+            return true;
+        }
     };
 
     // Simulation ---------------------------------------------------------------
@@ -531,7 +548,10 @@ namespace Electrons
             UpdateAfterRotation(oldEnergy);
         }
 
-        static bool Compare(Simulation& asim, Simulation& bsim)
+        // The Compare() function has Simulation objects passed by value, not reference.
+        // This is intentional, because the algorithm modifies the state of both asim and bsim.
+        // This prevents unintentional side-effects to the caller.
+        static bool Compare(Simulation asim, Simulation bsim)
         {
             using namespace std;
 
@@ -542,10 +562,124 @@ namespace Electrons
                 return false;
             }
 
-            return true;
+            if (n < 2)
+            {
+                // Trivial case: any pair of sims both with 0 or 1 particles
+                // have identical configurations, by definition.
+                // This short-cut is needed to avoid exceptions below.
+                return true;
+            }
+
+            // Obtain the distance spectra of both simulations.
+            const double ErrorTolerance = 1.0e-6;
+            const double GroupTolerance = 1.0e-3;
+            GroupPattern ag(asim.Spectrum(), GroupTolerance);
+            GroupPattern bg(bsim.Spectrum(), GroupTolerance);
+
+            double minError = 1.0e+100;
+
+            // See if the two simulations have compatible spectrum groups.
+            if (GroupPattern::Compatible(ag.pattern, bg.pattern, GroupTolerance))
+            {
+                // Use asim spectrum to find the two particles in asim that are closest together.
+                // (This is not a unique answer; there may be many pairs of the same minimal length.)
+                // Fix the asim sphere based on those two particles.
+                int a1 = ag.pattern[0].aIndex;
+                int a2 = ag.pattern[0].bIndex;
+                asim.InternalFix(a1, a2);
+
+                // Find every distinct pair of particles in bsim that are the same distance apart.
+                // We already tested compatibility between the respective groups, so try every
+                // pair in bsim's first group, and try each pair in both directions.
+                const int numPairs = static_cast<int>(bg.pattern.size());
+                for (int i=0; (i < numPairs) && (bg.pattern[i].group == bg.pattern[0].group); ++i)
+                {
+                    // Fix the bsim sphere based on those two particles.
+                    // Calculate mean position error between asim and bsim.
+                    // Find the minimum of all such errors.
+                    // If the minimum is below tolerance, declare the simulations equivalent.
+                    int b1 = bg.pattern[i].aIndex;
+                    int b2 = bg.pattern[i].bIndex;
+                    TryOrientation(asim, bsim, b1, b2, minError);
+                    TryOrientation(asim, bsim, b2, b1, minError);
+                }
+
+                return minError < ErrorTolerance;
+            }
+
+            // Could not find any way to match up the points in both sims.
+            return false;
         }
 
     private:
+        static void TryOrientation(Simulation& asim, Simulation& bsim, int b1, int b2, double& minError)
+        {
+            bsim.InternalFix(b1, b2);
+            double error = MeanPositionError(asim, bsim);
+            if (error < minError)
+            {
+                minError = error;
+                std::cout << "TryOrientation(" << b1 << "," << b2 << "): minError = " << minError << std::endl;
+            }
+        }
+
+        void UnvisitAllParticles()
+        {
+            for (Particle& p : particles)
+            {
+                p.visited = false;
+            }
+        }
+
+        static double MeanPositionError(Simulation& asim, Simulation& bsim)
+        {
+            if (asim.ParticleCount() != bsim.ParticleCount())
+            {
+                throw "Simulations must have same particle count.";
+            }
+
+            if (asim.ParticleCount() < 1)
+            {
+                throw "Simulations must have at least one particle each.";
+            }
+
+            // Find the root-mean-squared error of all vector positions.
+            // The two simulations can have particles in any order, so we compare
+            // each with the others.
+            double sum = 0.0;
+            bsim.UnvisitAllParticles();
+            for (Particle &ap : asim.particles)
+            {
+                // Find the particle bp that is closest to ap.
+                // Exclude bp if we have already paired it with another ap.
+                Particle *closest = nullptr;
+                double bestError = 5.0;      // largest possible distance is 2.0, so largest error is 4.0.
+
+                for (Particle &bp : bsim.particles)
+                {
+                    if (!bp.visited)
+                    {
+                        double error = (ap.position - bp.position).MagSquared();
+                        if (error < bestError)
+                        {
+                            bestError = error;
+                            closest = &bp;
+                        }
+                    }
+                }
+
+                if (closest == nullptr)
+                {
+                    throw "Could not find partner particle.";
+                }
+
+                closest->visited = true;    // prevent us from using this particle from bsim again
+                sum += bestError;
+            }
+
+            return sqrt(sum) / asim.ParticleCount();
+        }
+
         void UpdateAfterRotation(double oldEnergy)
         {
             // Recalculate force vectors and potential energy for the new configuration.
@@ -1118,6 +1252,7 @@ int main(int argc, const char *argv[])
                     cout << "The simulations are equivalent." << endl;
                     return 0;
                 }
+                cout << "SIMULATIONS DID NOT MATCH!" << endl;
                 return 9;   // special return value that scripts can use to find a surprising convergence!
             }
 
@@ -1168,4 +1303,3 @@ int main(int argc, const char *argv[])
         return 3;
     }
 }
-
