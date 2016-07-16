@@ -17,8 +17,13 @@
 #include <string>
 #include <algorithm>
 
+#include "lodepng.h"
+
 namespace Electrons
 {
+    // lodepng helpers...
+    const unsigned BYTES_PER_PIXEL = 4;
+
     // Vector ---------------------------------------------------------------
 
     struct Vector
@@ -479,7 +484,74 @@ namespace Electrons
             return pairs;
         }
 
+        void Draw(const char *outFileName) const
+        {
+            using namespace std;
+
+            const int pixelsWide = 500;
+            const int pixelsHigh = 500;
+            //const unsigned char OPAQUE_ALPHA_VALUE = 255;
+            const unsigned RGBA_BUFFER_SIZE = pixelsWide * pixelsHigh * BYTES_PER_PIXEL;
+
+            vector<unsigned char> rgbaBuffer(RGBA_BUFFER_SIZE);
+            fill(rgbaBuffer.begin(), rgbaBuffer.end(), 255);    // fill image with opaque white pixels
+
+            Render(rgbaBuffer, pixelsWide, pixelsHigh, pixelsWide/2, pixelsHigh/2, pixelsWide/2,
+                Vector(1, 0, 0),
+                Vector(0, 1, 0));
+
+            unsigned error = lodepng::encode(
+                outFileName,
+                rgbaBuffer,
+                pixelsWide,
+                pixelsHigh);
+
+            if (error != 0)
+            {
+                cerr << "lodepng::encode() returned error " << error << endl;
+                throw "Image encoding error";
+            }
+        }
+
     private:
+        void Render(
+            std::vector<unsigned char>& rgbaBuffer,
+            int pixelsWide,
+            int pixelsHigh,
+            int horCenter,
+            int verCenter,
+            int pixelRadius,
+            Vector horVector,
+            Vector verVector) const
+        {
+            const int dotradius = 2;
+
+            for (const Particle& p : particles)
+            {
+                int hh = horCenter + static_cast<int>(pixelRadius * Vector::Dot(horVector, p.position));
+                int vv = verCenter + static_cast<int>(pixelRadius * Vector::Dot(verVector, p.position));
+                for (int dh = -dotradius; dh <= +dotradius; ++dh)
+                {
+                    for (int dv = -dotradius; dv <= +dotradius; ++dv)
+                    {
+                        if (dh*dh + dv*dv <= dotradius*dotradius)
+                        {
+                            int h = hh + dh;
+                            int v = vv + dv;
+
+                            if ((h >= 0) && (h < pixelsWide) && (v >= 0) && (v <= pixelsHigh))
+                            {
+                                int index = BYTES_PER_PIXEL * ((v*pixelsWide) + h);
+                                rgbaBuffer[index++] = 0;    // red
+                                rgbaBuffer[index++] = 0;    // green
+                                rgbaBuffer[index++] = 0;    // blue
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         double Update(ParticleList& currlist, ParticleList& nextlist, double dt)
         {
             ++updateCount;
@@ -776,6 +848,9 @@ void PrintUsage()
         "    particles, sorted in ascending order.\n"
         "    Tolerance is a positive real number (e.g. 0.001) specifying\n"
         "    how much distance error to tolerate when grouping the particles.\n"
+        "\n"
+        "fastsim draw infile.json outfile.png\n"
+        "    Make a png image of the given simulation.\n"
         "\n";
 }
 
@@ -805,25 +880,6 @@ void Save(Electrons::Simulation& sim, const char *outFileName)
 
 //======================================================================================
 
-inline bool Different(double x, double y, const char *label, double tolerance)
-{
-    using namespace std;
-
-    double diff = fabs(x - y);
-    if (diff >= tolerance)
-    {
-        cout << setprecision(12) <<
-            "Different " << label <<
-            ": x=" << x <<
-            ", y=" << y <<
-            ", diff=" << diff <<
-            ", tolerance=" << tolerance << endl;
-
-        return true;
-    }
-    return false;
-}
-
 bool Compare(Electrons::Simulation& asim, Electrons::Simulation& bsim)
 {
     using namespace std;
@@ -832,14 +888,6 @@ bool Compare(Electrons::Simulation& asim, Electrons::Simulation& bsim)
     if (n != bsim.ParticleCount())
     {
         cout << "Simulations have different particle counts." << endl;
-        return false;
-    }
-
-    const double tolerance = 1.0e-7;
-    const int pairs = (n * (n-1)) / 2;
-
-    if (Different(asim.PotentialEnergy(), bsim.PotentialEnergy(), "potential energies", pairs*tolerance))
-    {
         return false;
     }
 
@@ -924,6 +972,15 @@ int main(int argc, const char *argv[])
                 //Print(cout, spectrum);
                 GroupPattern gp(spectrum, tolerance);
                 gp.Print(cout);
+                return 0;
+            }
+
+            if (!strcmp(verb, "draw") && (argc == 4))
+            {
+                const char *inFileName = argv[2];
+                const char *outFileName = argv[3];
+                Simulation sim(inFileName);
+                sim.Draw(outFileName);
                 return 0;
             }
         }
