@@ -21,6 +21,14 @@
 
 namespace Electrons
 {
+    class Simulation;
+}
+
+void Save(Electrons::Simulation& sim, const char *outFileName);
+
+namespace Electrons
+{
+
     // lodepng helpers...
     const unsigned BYTES_PER_PIXEL = 4;
 
@@ -447,7 +455,7 @@ namespace Electrons
             output << "]}\n";
         }
 
-        bool Converge()
+        void Converge()
         {
             using namespace std;
 
@@ -474,7 +482,7 @@ namespace Electrons
                     {
                         // We have made dt extremely small, yet we still can't decrease potential energy
                         // of the system. Consider the system to be converged.
-                        return true;
+                        return;
                     }
                     dt *= 0.5;      // shrink dt and try adjusting the particle locations again
                     nextenergy = Update(particles, nextlist, dt);
@@ -571,7 +579,7 @@ namespace Electrons
             }
 
             // Obtain the distance spectra of both simulations.
-            const double ErrorTolerance = 1.0e-6;
+            const double ErrorTolerance = 1.0e-5;
             const double GroupTolerance = 1.0e-3;
             GroupPattern ag(asim.Spectrum(), GroupTolerance);
             GroupPattern bg(bsim.Spectrum(), GroupTolerance);
@@ -588,6 +596,10 @@ namespace Electrons
                 int a2 = ag.pattern[0].bIndex;
                 asim.InternalFix(a1, a2);
 
+                int c1 = -1;
+                int c2 = -1;
+                bool cm = false;
+
                 // Find every distinct pair of particles in bsim that are the same distance apart.
                 // We already tested compatibility between the respective groups, so try every
                 // pair in bsim's first group, and try each pair in both directions.
@@ -600,27 +612,73 @@ namespace Electrons
                     // If the minimum is below tolerance, declare the simulations equivalent.
                     int b1 = bg.pattern[i].aIndex;
                     int b2 = bg.pattern[i].bIndex;
-                    TryOrientation(asim, bsim, b1, b2, minError);
-                    TryOrientation(asim, bsim, b2, b1, minError);
+
+                    if (TryOrientation(asim, bsim, b1, b2, false, minError, c1, c2, cm) < ErrorTolerance)
+                        return true;
+
+                    if (TryOrientation(asim, bsim, b2, b1, false, minError, c1, c2, cm) < ErrorTolerance)
+                        return true;
+
+                    if (TryOrientation(asim, bsim, b1, b2, true, minError, c1, c2, cm) < ErrorTolerance)
+                        return true;
+
+                    if (TryOrientation(asim, bsim, b2, b1, true, minError, c1, c2, cm) < ErrorTolerance)
+                        return true;
                 }
 
-                return minError < ErrorTolerance;
+                if (c1 < 0)
+                    throw "Failed to find any bsim groups.";
+
+                // FAILURE!  Put bsim back in the state where we found minimal error.
+                if (cm)
+                    bsim.Mirror();
+                bsim.InternalFix(c1, c2);
+            }
+            else
+            {
+                cout << "*** Incompatible groups" << endl;
+                cout << "asim groups:" << endl;
+                ag.Print(cout);
+                cout << "bsim groups:" << endl;
+                bg.Print(cout);
             }
 
             // Could not find any way to match up the points in both sims.
+            const char *aOutFileName = "asim.json";
+            const char *bOutFileName = "bsim.json";
+            cout << "MISMATCH FOUND - dumping to files " << aOutFileName << " and " << bOutFileName << endl;
+            ::Save(asim, aOutFileName);
+            ::Save(bsim, bOutFileName);
+            cout << "*** minError = " << minError << endl;
             return false;
         }
 
     private:
-        static void TryOrientation(Simulation& asim, Simulation& bsim, int b1, int b2, double& minError)
+        void Mirror()
         {
+            for (Particle& p : particles)
+            {
+                p.position.z *= -1.0;
+            }
+        }
+
+        static double TryOrientation(
+            Simulation& asim, Simulation& bsim,
+            int b1, int b2, bool mirror,
+            double& minError, int& c1, int &c2, bool &cmirror)
+        {
+            if (mirror)
+                bsim.Mirror();
             bsim.InternalFix(b1, b2);
             double error = MeanPositionError(asim, bsim);
             if (error < minError)
             {
                 minError = error;
-                std::cout << "TryOrientation(" << b1 << "," << b2 << "): minError = " << minError << std::endl;
+                c1 = b1;
+                c2 = b2;
+                cmirror = mirror;
             }
+            return error;
         }
 
         void UnvisitAllParticles()
@@ -1164,6 +1222,10 @@ void PrintUsage()
         "    such that the particle at index 'north' ends up at the\n"
         "    north pole (0, 0, 1) and that for 'east' ends up on an\n"
         "    easterly meridian (x >= 0, 0, z).\n"
+        "\n"
+        "fastsim search N\n"
+        "    Repeatedly generate N-particle simulations and converge them.\n"
+        "    Search for any mismatching configurations and stop if found.\n"
         "\n";
 }
 
@@ -1193,6 +1255,35 @@ void Save(Electrons::Simulation& sim, const char *outFileName)
 
 //======================================================================================
 
+void Search(int numParticles)
+{
+    using namespace std;
+    using namespace Electrons;
+
+    Simulation asim(numParticles);
+    asim.Converge();
+
+    int count = 0;
+    while (true)    // keep searching until we find a mismatch
+    {
+        Simulation bsim(numParticles);
+        bsim.Converge();
+
+        if (!Simulation::Compare(asim, bsim))
+        {
+            break;
+        }
+
+        ++count;
+        if (count % 100 == 0)
+        {
+            cout << "Tried " << count << endl;
+        }
+    }
+}
+
+//======================================================================================
+
 int main(int argc, const char *argv[])
 {
     using namespace std;
@@ -1212,14 +1303,10 @@ int main(int argc, const char *argv[])
                     cout << "Deleted existing file '" << outFileName << "'" << endl;
                 }
                 Simulation sim(n);
-                if (sim.Converge())
-                {
-                    cout << "Converged after " << sim.FrameCount() << " frames, " << sim.UpdateCount() << " updates." << endl;
-                    Save(sim, outFileName);
-                    return 0;
-                }
-                cout << "FAILED TO CONVERGE!" << endl;
-                return 1;
+                sim.Converge();
+                cout << "Converged after " << sim.FrameCount() << " frames, " << sim.UpdateCount() << " updates." << endl;
+                Save(sim, outFileName);
+                return 0;
             }
 
             if (!strcmp(verb, "random") && (argc == 4))
@@ -1290,6 +1377,13 @@ int main(int argc, const char *argv[])
                 Simulation sim(inFileName);
                 sim.Fix(northPoleIndex, eastLineIndex);
                 Save(sim, outFileName);
+                return 0;
+            }
+
+            if (!strcmp(verb, "search") && (argc == 3))
+            {
+                int numParticles = ScanNumParticles(argv[2]);
+                Search(numParticles);
                 return 0;
             }
         }
