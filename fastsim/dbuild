@@ -1,0 +1,2 @@
+#!/bin/bash
+g++ -g -O0 -Wall -Wshadow -Wextra -Wunused -Werror --std=c++0x -o dfastsim -I../../lodepng fastsim.cpp ../../lodepng/lodepng.cpp

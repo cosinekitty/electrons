@@ -15,4 +15,4 @@ fi
 # I used to use --std=c++11, but that doesn't work on Raspberry Pi
 # because it uses an older version (4.6) of the compiler.
 # As far as I can tell, c++0x builds the code the same way as c++11.
-g++ -O3 -Wall --std=c++0x -o fastsim -I../../lodepng fastsim.cpp ../../lodepng/lodepng.cpp
+g++ -O3 -Wall -Wshadow -Wextra -Wunused -Werror --std=c++0x -o fastsim -I../../lodepng fastsim.cpp ../../lodepng/lodepng.cpp
