@@ -1201,10 +1201,11 @@ void PrintUsage()
         "    north pole (0, 0, 1) and that for 'east' ends up on an\n"
         "    easterly meridian (x >= 0, 0, z).\n"
         "\n"
-        "fastsim search N limit\n"
-        "    Repeatedly generate N-particle simulations and converge them.\n"
-        "    Search for all different ways that number of particles can settle.\n"
-        "    Stop searching after 'limit' attempts.\n"
+        "fastsim search N1 N2 limit\n"
+        "    Repeatedly generate N-particle simulations and converge them,\n"
+        "    where N is increased in the closed range [N1..N2].\n"
+        "    Search for all different ways each number N of particles can settle.\n"
+        "    Stop searching after 'limit' attempts for each value of N.\n"
         "\n";
 }
 
@@ -1376,11 +1377,15 @@ int main(int argc, const char *argv[])
                 return 0;
             }
 
-            if (!strcmp(verb, "search") && (argc == 4))
+            if (!strcmp(verb, "search") && (argc == 5))
             {
-                int numParticles = ScanNumParticles(argv[2]);
-                int limit = atoi(argv[3]);
-                Search(numParticles, limit);
+                int n1 = ScanNumParticles(argv[2]);
+                int n2 = ScanNumParticles(argv[3]);
+                int limit = atoi(argv[4]);
+                for (int n = n1; n <= n2; ++n)
+                {
+                    Search(n, limit);
+                }
                 return 0;
             }
         }
