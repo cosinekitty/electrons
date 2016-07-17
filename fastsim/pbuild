@@ -1,0 +1,2 @@
+#!/bin/bash
+g++ -fprofile-arcs -ftest-coverage -g -Og -Wall -Wshadow -Wextra -Wunused -Werror --std=c++0x -o pfastsim -I../../lodepng fastsim.cpp ../../lodepng/lodepng.cpp
