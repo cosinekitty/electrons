@@ -474,7 +474,6 @@ namespace Electrons
 
             // Create auxiliary particle lists to hold candidate next frames.
             ParticleList nextlist = CreateParticleList();
-            ParticleList bestlist = CreateParticleList();
 
             // The potential energy and tangential forces have already been calculated
             // for the current configuration.  See constructor.
@@ -1016,7 +1015,7 @@ namespace Electrons
             return sqrt(forcemag);
         }
 
-        ParticleList CreateParticleList()
+        ParticleList CreateParticleList() const
         {
             const ParticleList::size_type n = particles.size();
             ParticleList list;
@@ -1030,7 +1029,7 @@ namespace Electrons
 
         static const int MAXSTRING = 40;
 
-        void AppendChar(char *string, int& index, char c)
+        static void AppendChar(char *string, int& index, char c)
         {
             if (index < MAXSTRING)
             {
