@@ -2,7 +2,7 @@
     fastsim.cpp  -  Don Cross  -  1 July 2016.
 
     A simulation of mutually repulsive particles trapped on the surface of a sphere.
-    This is also known as the Thompson Problem.
+    This is also known as the Thomson Problem.
     See:  https://en.wikipedia.org/wiki/Thomson_problem
 */
 
