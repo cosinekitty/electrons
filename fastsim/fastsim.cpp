@@ -28,7 +28,6 @@ void Save(Electrons::Simulation& sim, const char *outFileName);
 
 namespace Electrons
 {
-
     // lodepng helpers...
     const unsigned BYTES_PER_PIXEL = 4;
 
@@ -64,9 +63,7 @@ namespace Electrons
         {
             double r = Mag();
             if (r < 1.0e-9)
-            {
                 throw "Cannot find unit vector for near-zero magnitude vector.";
-            }
             return Vector(x/r, y/r, z/r);
         }
 
@@ -137,9 +134,7 @@ namespace Electrons
     {
         int spaces = 4*indent;
         for (int i=0; i < spaces; ++i)
-        {
             output << " ";
-        }
     }
 
     void JsonPrint(std::ostream& output, const Vector& v)
@@ -194,7 +189,8 @@ namespace Electrons
 
         uint64_t data;
         infile.read((char *)&data, sizeof(data));
-        if (!infile) throw "Read failure generating random number.";
+        if (!infile) 
+            throw "Read failure generating random number.";
 
         // Convert the 64-bit integer to double-precision floating point.
         // Divide by maximum possible value to get a number in the closed range [0, +1].
@@ -269,9 +265,7 @@ namespace Electrons
     {
         output << "DistanceSpectrum " << pairs.size() << std::endl;
         for (const Pair& p : pairs)
-        {
             p.Print(output);
-        }
     }
 
     struct GroupPattern
@@ -286,21 +280,16 @@ namespace Electrons
             for (const Pair& p : spectrum)
             {
                 if (p.aIndex >= n)
-                {
                     n = 1 + p.aIndex;
-                }
+
                 if (p.bIndex >= n)
-                {
                     n = 1 + p.bIndex;
-                }
             }
 
             // Initialize each particle's group to 0, meaning "no group".
             groups.reserve(static_cast<std::vector<int>::size_type>(n));
             for (int i=0; i < n; ++i)
-            {
                 groups.push_back(0);
-            }
 
             // Break the spectrum into bands of approximately equal pair distances.
             // Once a particle has been assigned to a group, exclude it from any later groups.
@@ -385,21 +374,15 @@ namespace Electrons
             using namespace std;
 
             if ((numPoints < MinParticles) || (numPoints > MaxParticles))
-            {
                 throw "Invalid number of particles.";
-            }
 
             ifstream infile("/dev/urandom", ios::in | ios::binary);
             if (!infile)
-            {
                 throw "Could not open /dev/urandom to obtain random numbers.";
-            }
 
             particles.reserve(static_cast<ParticleList::size_type>(numPoints));
             for (int i=0; i < numPoints; ++i)
-            {
                 particles.push_back(Particle(RandomSpherePoint(infile)));
-            }
 
             energy = CalcTangentialForces(particles);
         }
@@ -466,6 +449,15 @@ namespace Electrons
 
             JsonIndent(output, indent);
             output << "]}\n";
+        }
+
+        void CsvPrint(std::ostream& output) const
+        {
+            using namespace std;
+
+            output << setprecision(15);
+            for (const Particle& p : particles)
+                output << p.position.x << "," << p.position.y << "," << p.position.z << "\n";
         }
 
         void Converge()
@@ -577,9 +569,7 @@ namespace Electrons
 
             const int n = asim.ParticleCount();
             if (n != bsim.ParticleCount())
-            {
                 throw "Simulations have different particle counts.";
-            }
 
             if (n < 2)
             {
@@ -639,9 +629,7 @@ namespace Electrons
             // we create a mirror image without moving the two important points at all.
 
             for (Particle& p : particles)
-            {
                 p.position.y *= -1.0;
-            }
         }
 
         static double TryOrientation(
@@ -661,22 +649,16 @@ namespace Electrons
         void UnvisitAllParticles()
         {
             for (Particle& p : particles)
-            {
                 p.visited = false;
-            }
         }
 
         static double MeanPositionError(Simulation& asim, Simulation& bsim)
         {
             if (asim.ParticleCount() != bsim.ParticleCount())
-            {
                 throw "Simulations must have same particle count.";
-            }
 
             if (asim.ParticleCount() < 1)
-            {
                 throw "Simulations must have at least one particle each.";
-            }
 
             // Find the root-mean-squared error of all vector positions.
             // The two simulations can have particles in any order, so we compare
@@ -704,9 +686,7 @@ namespace Electrons
                 }
 
                 if (closest == nullptr)
-                {
                     throw "Could not find partner particle.";
-                }
 
                 closest->visited = true;    // prevent us from using this particle from bsim again
                 sum += bestError;
@@ -721,9 +701,7 @@ namespace Electrons
             // This is so we maintain the invariant of this class, but also serves as a sanity check.
             energy = CalcTangentialForces(particles);
             if (fabs(energy - oldEnergy) > 1.0e-6)
-            {
                 throw "Potential energy should not have changed.";
-            }
         }
 
         void InternalFix(int northPoleIndex, int eastLineIndex)
@@ -742,24 +720,16 @@ namespace Electrons
             // Validate the particle indices.
             const int n = ParticleCount();
             if (n < 2)
-            {
                 throw "Simulation must have at least 2 particles.";
-            }
 
             if (northPoleIndex<0 || northPoleIndex>=n)
-            {
                 throw "Invalid particle index to move to north pole.";
-            }
 
             if (eastLineIndex<0 || eastLineIndex>=n)
-            {
                 throw "Invalid particle index to move to east line.";
-            }
 
             if (northPoleIndex == eastLineIndex)
-            {
                 throw "Particle indices must be different.";
-            }
 
             const double tolerance = 1.0e-6;
 
@@ -923,9 +893,7 @@ namespace Electrons
         {
             const ParticleList::size_type numParticles = particles.size();
             if (numParticles < 2)
-            {
                 throw "There must be at least 2 particles to find a minimum pair distance.";
-            }
 
             double minDistanceSquared = 5.0;  // particles can never be more than 2 units apart, and 2^2 = 4.
             for (ParticleList::size_type i=0; i < numParticles-1; ++i)
@@ -934,16 +902,12 @@ namespace Electrons
                 {
                     double distanceSquared = (particles[i].position - particles[j].position).MagSquared();
                     if (distanceSquared < minDistanceSquared)
-                    {
                         minDistanceSquared = distanceSquared;
-                    }
                 }
             }
 
             if (minDistanceSquared > 4.000000001)       // allow ample room for roundoff error in the n=2 case
-            {
                 throw "Impossible minimum distance between particles!";
-            }
 
             return sqrt(minDistanceSquared);
         }
@@ -952,21 +916,15 @@ namespace Electrons
         {
             // Reset each particle's force to a zero vector.
             for (Particle& p : particles)
-            {
                 p.force.Reset();
-            }
 
             // Compute force between each unique pair of particles
             // and total potential energy of the system.
             double energy = 0.0;
             const ParticleList::size_type numParticles = particles.size();
             for (ParticleList::size_type i=0; i < numParticles-1; ++i)
-            {
                 for (ParticleList::size_type j=i+1; j < numParticles; ++j)
-                {
                     energy += AddForces(particles[i], particles[j]);
-                }
-            }
 
             // The particles can only move along the surface of the sphere,
             // so eliminate the radial component of all forces,
@@ -985,9 +943,7 @@ namespace Electrons
         {
             const ParticleList::size_type numParticles = inlist.size();
             if (numParticles != outlist.size())
-            {
                 throw "Inconsistent particle list sizes.";
-            }
 
             for (ParticleList::size_type i=0; i < numParticles; ++i)
             {
@@ -1021,9 +977,7 @@ namespace Electrons
             ParticleList list;
             list.reserve(n);
             for (ParticleList::size_type i = 0; i < n; ++i)
-            {
                 list.push_back(Particle());
-            }
             return list;
         }
 
@@ -1037,9 +991,7 @@ namespace Electrons
                 string[index] = '\0';
             }
             else
-            {
                 throw "JSON token is too long.";
-            }
         }
 
         void JsonLoad(const char *inFileName)
@@ -1055,9 +1007,7 @@ namespace Electrons
 
             ifstream infile(inFileName);
             if (!infile)
-            {
                 throw "Cannot open input file.";
-            }
 
             particles.clear();
             frameCount = 0;
@@ -1114,16 +1064,12 @@ namespace Electrons
                             }
                         }
                         else
-                        {
                             AppendChar(key, k, c);
-                        }
                         break;
 
                     case NUMBER:
                         if ((c >= '0' && c <= '9') || c=='-' || c=='+' || c=='e' || c=='E' || c=='.')
-                        {
                             AppendChar(numeric, n, c);
-                        }
                         else
                         {
                             state = SEARCH;
@@ -1141,13 +1087,9 @@ namespace Electrons
                                 }
                             }
                             else if (!strcmp(key, "frame"))
-                            {
                                 frameCount = atoi(numeric);
-                            }
                             else if (!strcmp(key, "update") || !strcmp(key, "loop"))
-                            {
                                 updateCount = atoi(numeric);
-                            }
                         }
                         break;
 
@@ -1172,6 +1114,10 @@ void PrintUsage()
         "fastsim converge N [outfile.json]\n"
         "    Simulate N particles until they reach minimum potential energy.\n"
         "    If output filename is omitted, it defaults to 'sim.json'.\n"
+        "    The filename extension determines the output format:\n"
+        "    if it ends with '.json', its format is JSON. Otherwise it is\n"
+        "    written with a comma-separated text format that cannot be loaded back\n"
+        "    into this software, but may be easier to deal with from spreadsheets, etc.\n"
         "\n"
         "fastsim random N outfile.json\n"
         "    Save a random configuration of N particles to the specified file.\n"
@@ -1212,24 +1158,56 @@ int ScanNumParticles(const char *text)
 {
     int n = atoi(text);
     if ((n < Electrons::Simulation::MinParticles) || (n > Electrons::Simulation::MaxParticles))
-    {
         throw "Invalid number of particles.";
-    }
     return n;
+}
+
+enum OutputFormat
+{
+    FORMAT_JSON,
+    FORMAT_CSV,
+};
+
+OutputFormat DetermineOutputFormatFromFileName(const char *filename)
+{
+    if (filename)
+    {
+        // Find last '.' in the filename, if any.
+        const char *ext = nullptr;
+        for (const char *tail = filename; *tail; ++tail)
+            if (*tail == '.')
+                ext = tail;
+
+        if (ext && !strcmp(ext, ".csv"))
+            return FORMAT_CSV;
+    }
+    return FORMAT_JSON;
 }
 
 void Save(Electrons::Simulation& sim, const char *outFileName)
 {
+    OutputFormat format = DetermineOutputFormatFromFileName(outFileName);
+
     std::ofstream outfile(outFileName);
     if (!outfile)
-    {
         throw "Error opening output file!";
-    }
-    sim.JsonPrint(outfile, 0);
-    if (!outfile)
+
+    switch (format)
     {
-        throw "Error writing to output file!";
+    case FORMAT_JSON:
+        sim.JsonPrint(outfile, 0);
+        break;
+
+    case FORMAT_CSV:
+        sim.CsvPrint(outfile);
+        break;
+
+    default:
+        throw "Unknown output format";
     }
+
+    if (!outfile)
+        throw "Error writing to output file!";
 }
 
 //======================================================================================
@@ -1295,9 +1273,7 @@ int main(int argc, const char *argv[])
                 int n = ScanNumParticles(argv[2]);
                 const char *outFileName = (argc > 3) ? argv[3] : "sim.json";
                 if (0 == remove(outFileName))
-                {
                     cout << "Deleted existing file '" << outFileName << "'" << endl;
-                }
                 Simulation sim(n);
                 sim.Converge();
                 cout << "Converged after " << sim.FrameCount() << " frames, " << sim.UpdateCount() << " updates." << endl;
@@ -1382,9 +1358,7 @@ int main(int argc, const char *argv[])
                 int n2 = ScanNumParticles(argv[3]);
                 int limit = atoi(argv[4]);
                 for (int n = n1; n <= n2; ++n)
-                {
                     Search(n, limit);
-                }
                 return 0;
             }
         }
